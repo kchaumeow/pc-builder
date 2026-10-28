@@ -1,5 +1,8 @@
 from pcbuilder.domain.compatibility import (
+    Severity,
     cpu_socket_matches_motherboard,
+    psu_has_gpu_connectors,
+    psu_wattage_sufficient,
     ram_matches_cpu,
     ram_matches_motherboard,
 )
@@ -10,6 +13,8 @@ from pcbuilder.domain.models import (
     Motherboard,
     MotherBoardFormFactor,
     RamKit,
+    PowerSupply as PSU,
+    GPU,
 )
 
 # --- Фабрики -----------------------------------------------------------------
@@ -19,13 +24,14 @@ from pcbuilder.domain.models import (
 def make_cpu(
     socket: str = "AM5",
     memory_types: list[MemoryType] | None = None,
+    tdp_w: int = 65,
 ) -> CPU:
     return CPU(
         id="cpu-1",
         brand="AMD",
         model="Ryzen 5 7600",
         socket=socket,
-        tdp_w=65,
+        tdp_w=tdp_w,
         memory_types=memory_types or [MemoryType.DDR5],
         cores=6,
         threads=12,
@@ -64,6 +70,33 @@ def make_ram(
         modules=modules,
         capacity_gb=capacity_gb,
         speed_mhz=6000,
+    )
+
+def make_psu(wattage_w: int = 750, pcie_8pin: int = 2, has_12vhpwr: bool = False) -> PSU:
+    return PSU(
+        id="psu-1",
+        brand="Corsair",
+        model="RM750x",
+        wattage_w=wattage_w,
+        pcie_8pin=pcie_8pin,
+        has_12vhpwr=has_12vhpwr,
+    )
+
+def make_gpu(
+    tdp_w: int = 200,
+    power_connectors: list[str] | None = None,
+    recommended_psu_w: int | None = None,
+    length_mm: int = 285,
+) -> GPU:
+    return GPU(
+        id="gpu-1",
+        brand="NVIDIA",
+        model="RTX 4070",
+        tdp_w=tdp_w,
+        recommended_psu_w=recommended_psu_w,
+        power_connectors=power_connectors or ["8-pin", "8-pin"],
+        vram_gb=12,
+        length_mm=length_mm,
     )
 
 
@@ -174,3 +207,55 @@ def test_cpu_with_two_memory_types_accepts_both():
 def test_ram_cpu_rule_silent_without_cpu():
     build = Build(ram=make_ram())
     assert ram_matches_cpu(build) == []
+
+def test_psu_exactly_at_requirement_is_ok():
+
+    build = Build(
+        psu=make_psu(wattage_w=425),
+        cpu=make_cpu(),
+        gpu=make_gpu(tdp_w=200),
+    )
+    assert psu_wattage_sufficient(build) == []
+
+def test_psu_one_watt_short_is_error():
+    build = Build(cpu=make_cpu(), gpu=make_gpu(), psu=make_psu(wattage_w=424))
+    issues = psu_wattage_sufficient(build)
+    assert rules(issues) == {"PSU_WATTAGE_INSUFFICIENT"}
+    assert issues[0].severity == Severity.ERROR
+
+def test_psu_below_gpu_recommendation_is_warning():
+    build = Build(
+        cpu=make_cpu(),
+        gpu=make_gpu(recommended_psu_w=650),
+        psu=make_psu(wattage_w=550),
+    )
+    issues = psu_wattage_sufficient(build)
+    assert rules(issues) == {"PSU_BELOW_GPU_RECOMMENDATION"}
+    assert issues[0].severity == Severity.WARNING
+
+def test_psu_3_8pin_connectors_insufficient_is_error():
+    build = Build(
+        psu=make_psu(wattage_w=750, pcie_8pin=2),
+        gpu=make_gpu(power_connectors=["8-pin", "8-pin", "8-pin"]),
+    )
+    issues = psu_has_gpu_connectors(build)
+    assert rules(issues) == {"PSU_INSUFFICIENT_8PIN_CONNECTORS"}
+    assert issues[0].severity == Severity.ERROR
+
+def test_psu_12vhpwr_connector_missing_is_warning():
+    build = Build(
+        psu=make_psu(wattage_w=750, pcie_8pin=2, has_12vhpwr=False),
+        gpu=make_gpu(power_connectors=["12VHPWR"]),
+    )
+    issues = psu_has_gpu_connectors(build)
+    assert rules(issues) == {"PSU_12VHPWR_VIA_ADAPTER"}
+    assert issues[0].severity == Severity.WARNING
+
+def test_psu_12vhpwr_connector_missing_is_error():
+    build = Build(
+        psu=make_psu(wattage_w=750, pcie_8pin=1, has_12vhpwr=False),
+        gpu=make_gpu(power_connectors=["12VHPWR"]),
+    )
+    issues = psu_has_gpu_connectors(build)
+    assert rules(issues) == {"PSU_MISSING_12VHPWR_CONNECTOR"}
+    assert issues[0].severity == Severity.ERROR

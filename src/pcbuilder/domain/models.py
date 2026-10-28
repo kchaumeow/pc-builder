@@ -74,7 +74,7 @@ class RamKit(Component):
     cas_latency: int | None = None
 
 
-class Gpu(Component):
+class GPU(Component):
     category: ComponentType = ComponentType.GPU
     vram_gb: int
     tdp_w: int
@@ -171,7 +171,7 @@ class Build(BaseModel):
     cpu: CPU | None = None
     motherboard: Motherboard | None = None
     ram: RamKit | None = None
-    gpu: Gpu | None = None
+    gpu: GPU | None = None
     storage: list[Storage] = []
     psu: PowerSupply | None = None
     case: Case | None = None
