@@ -12,7 +12,7 @@ VENGEANCE_RGB = {
 
 def test_parse_memory():
     ram = parse_memory(VENGEANCE_RGB)
-    assert ram.id == "ram-corsair-vengeance-rgb-32-gb"
+    assert ram.id == "ram-corsair-vengeance-rgb-32-gb-ddr5-6000-2x16-cl36-black"
     assert ram.brand == "Corsair"
     assert ram.model == "Vengeance RGB 32 GB"
     assert ram.memory_type == MemoryType.DDR5
