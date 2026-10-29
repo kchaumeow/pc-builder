@@ -23,7 +23,7 @@ def test_parse_memory():
 
 
 def test_parse_memory_four_modules():
-    # Ловит len(modules): у списка [4, 8] длина 2, а планок 4
+
     ram = parse_memory({**VENGEANCE_RGB, "modules": [4, 8]})
     assert ram.modules == 4
     assert ram.capacity_gb == 32

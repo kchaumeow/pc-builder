@@ -77,9 +77,9 @@ class CPU(Component):
     integrated_graphics: bool = False
     includes_cooler: bool = False
     cores: int
-    threads: int
-    base_clock_mhz: int | None = None
-    boost_clock_mhz: int | None = None
+    threads: int | None = None
+    base_clock_mhz: float | None = None
+    boost_clock_mhz: float | None = None
 
 
 class Motherboard(Component):

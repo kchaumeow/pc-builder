@@ -1,5 +1,7 @@
 
-from pcbuilder.domain.models import Component, RamKit, MemoryType
+from collections import Counter
+
+from pcbuilder.domain.models import CPU, Component, RamKit, MemoryType
 import json
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -70,3 +72,34 @@ def parse_memory(record: dict) -> RamKit:
 
 
     return RamKit(brand=name[0], model=" ".join(name[1:]), modules=module_count, speed_mhz=speed_mhz, memory_type=memory_type, capacity_gb=module_count * module_gb, id=memory_id(record, ddr_version=ddr_version, speed_mhz=speed_mhz, module_count=module_count, module_gb=module_gb), cas_latency=record.get("cas_latency"))
+
+CPU_ARCHITECTURES = {
+    # AMD AM5
+    "Zen 5": ("AM5", [MemoryType.DDR5]),
+    "Zen 4": ("AM5", [MemoryType.DDR5]),
+    # AMD AM4
+    "Zen 3": ("AM4", [MemoryType.DDR4]),
+    "Zen 2": ("AM4", [MemoryType.DDR4]),
+    # Intel LGA1851
+    "Arrow Lake": ("LGA1851", [MemoryType.DDR5]),
+    # Intel LGA1700
+    "Raptor Lake Refresh": ("LGA1700", [MemoryType.DDR4, MemoryType.DDR5]),
+    "Raptor Lake": ("LGA1700", [MemoryType.DDR4, MemoryType.DDR5]),
+    "Alder Lake": ("LGA1700", [MemoryType.DDR4, MemoryType.DDR5]),
+}
+
+EXCLUDED_LINES = ("Threadripper", "EPYC", "Xeon")
+
+def parse_cpu(record: dict) -> CPU:
+    name = record["name"].split(" ")
+
+    if any(word in name for word in EXCLUDED_LINES):
+        raise ValueError(f"Workstation/server CPU not supported: {name}")
+
+    arch = record.get("microarchitecture")
+    known = CPU_ARCHITECTURES.get(arch) # type: ignore
+    if known is None:
+        raise ValueError(f"Unknown microarchitecture {arch!r} in {record['name']}")
+    socket, memory_types = known
+
+    return CPU(brand=name[0], model=" ".join(name[1:]), socket=socket, tdp_w=record["tdp"], memory_types=memory_types, cores=record["core_count"], base_clock_mhz=record.get("core_clock"), boost_clock_mhz=record.get("boost_clock"), integrated_graphics=record.get("graphics") is not None, id="".join(name))
