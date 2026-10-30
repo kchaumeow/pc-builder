@@ -85,13 +85,13 @@ class CPU(Component):
 class Motherboard(Component):
     category: ComponentType = ComponentType.MOTHERBOARD
     socket: str
-    chipset: str
+    chipset: str | None = None
     form_factor: MotherBoardFormFactor
     memory_type: MemoryType
     memory_slots: int
     max_memory_gb: int
-    sata_ports: int = 0
-    m2_slots: int = 0
+    sata_ports: int | None = None
+    m2_slots: int | None = None
 
 
 class RamKit(Component):

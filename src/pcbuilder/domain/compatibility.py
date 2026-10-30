@@ -286,14 +286,16 @@ def storage_fits_motherboard(build: Build) -> list[Issue]:
     m2_count = sum(1 for s in build.storage if s.form_factor == StorageFormFactor.M2)
     sata_count = len(build.storage) - m2_count
 
-    if m2_count > mb.m2_slots:
+    
+
+    if mb.m2_slots is not None and m2_count > mb.m2_slots:
         issues.append(
             _error(
                 "STORAGE_TOO_MANY_M2",
                 f"{m2_count} M.2 drives, motherboard has {mb.m2_slots} M.2 slots",
             )
         )
-    if sata_count > mb.sata_ports:
+    if mb.sata_ports is not None and sata_count > mb.sata_ports:
         issues.append(
             _error(
                 "STORAGE_TOO_MANY_SATA",
