@@ -103,8 +103,8 @@ def make_ram(
 
 def make_psu(
     wattage_w: int = 750,
-    pcie_8pin: int = 2,
-    has_12vhpwr: bool = False,
+    pcie_8pin: int | None = None,
+    has_12vhpwr: bool | None = None,
     form_factor: PsuFormFactor = PsuFormFactor.ATX,
     length_mm: int | None = None,
 ) -> PSU:
@@ -320,6 +320,27 @@ def test_psu_one_watt_short_is_error():
     assert rules(issues) == {"PSU_WATTAGE_INSUFFICIENT"}
     assert issues[0].severity == Severity.ERROR
 
+def test_psu_with_zero_8pin_known_is_error():
+    # 0 — это «точно нет», а не «неизвестно»
+    build = Build(psu=make_psu(pcie_8pin=0), gpu=make_gpu(power_connectors=["8-pin", "8-pin"]))
+    assert rules(psu_has_gpu_connectors(build)) == {"PSU_INSUFFICIENT_8PIN_CONNECTORS"}
+
+def test_psu_unknown_connectors_is_silent_for_8pin_gpu():
+    build = Build(psu=make_psu(pcie_8pin=None, has_12vhpwr=None),
+                  gpu=make_gpu(power_connectors=["8-pin", "8-pin", "8-pin"]))
+    assert psu_has_gpu_connectors(build) == []
+
+
+def test_psu_unknown_12vhpwr_is_silent():
+    build = Build(psu=make_psu(has_12vhpwr=None), gpu=make_gpu(power_connectors=["12VHPWR"]))
+    assert psu_has_gpu_connectors(build) == []
+
+
+def test_psu_no_12vhpwr_unknown_8pin_is_adapter_warning():
+    build = Build(psu=make_psu(pcie_8pin=None, has_12vhpwr=False), gpu=make_gpu(power_connectors=["12VHPWR"]))
+    issues = psu_has_gpu_connectors(build)
+    assert rules(issues) == {"PSU_12VHPWR_VIA_ADAPTER"}
+    assert issues[0].severity == Severity.WARNING
 
 def test_psu_without_gpu_needs_less_power():
     # 75 + 65 = 140 Вт; ×1.25 → 175 Вт

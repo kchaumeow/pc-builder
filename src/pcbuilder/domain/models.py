@@ -137,16 +137,20 @@ class Storage(Component):
             return "NVMe SSD"
         return "SATA SSD"
 
+class PsuModularity(StrEnum):
+    FULL = "FULL"
+    SEMI = "SEMI"
+    NONE = "NONE"
 
 class PowerSupply(Component):
     category: ComponentType = ComponentType.POWER_SUPPLY
     wattage_w: int
     efficiency_rating: str | None = None  # "80 Plus Bronze", "80 Plus Gold"
-    modular: bool = False
+    modular: PsuModularity = PsuModularity.NONE
     form_factor: PsuFormFactor = PsuFormFactor.ATX
     length_mm: int | None = None
-    pcie_8pin: int = 0
-    has_12vhpwr: bool = False
+    pcie_8pin: int | None = None
+    has_12vhpwr: bool | None = None
 
 
 class Cooling(Component):
