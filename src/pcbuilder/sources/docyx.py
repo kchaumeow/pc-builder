@@ -8,7 +8,7 @@
 from decimal import Decimal
 import json
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 
 from pcbuilder.domain.models import (
@@ -590,7 +590,7 @@ def load_offers(path: Path, parse: Callable[[dict], Component]) -> dict[str, Off
     return offers
 
 
-def load_offers_by_name(path: Path, parts: dict[str, Component]) -> dict[str, Offer]:
+def load_offers_by_name(path: Path, parts: Mapping[str, Component]) -> dict[str, Offer]:
     """Цены для деталей из другого источника (справочников), найденных по названию.
 
     Сравниваем без учёта регистра: в датасете «Lian Li LANCOOL 216», у нас «Lian Li Lancool 216».
