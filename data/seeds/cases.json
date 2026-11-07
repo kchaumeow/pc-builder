@@ -1,0 +1,18 @@
+{
+  "note": "Корпуса, заполненные вручную. Лимиты — из спецификаций производителей. verified=false — значение не сверено с сайтом производителя; перед использованием проверить и поставить true.",
+  "items": [
+    {"brand": "Fractal Design", "model": "North", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 355, "max_cooler_height_mm": 170, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Fractal Design", "model": "Pop Air", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 405, "max_cooler_height_mm": 170, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Fractal Design", "model": "Meshify 2 Compact", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 360, "max_cooler_height_mm": 169, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Fractal Design", "model": "Torrent", "supported_motherboard_form_factors": ["E-ATX", "ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 461, "max_cooler_height_mm": 188, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Corsair", "model": "4000D Airflow", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 360, "max_cooler_height_mm": 170, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Corsair", "model": "3000D Airflow", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 360, "max_cooler_height_mm": 170, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Lian Li", "model": "Lancool 216", "supported_motherboard_form_factors": ["E-ATX", "ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 392, "max_cooler_height_mm": 180, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Lian Li", "model": "O11 Dynamic EVO", "supported_motherboard_form_factors": ["E-ATX", "ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 426, "max_cooler_height_mm": 167, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "NZXT", "model": "H5 Flow", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 365, "max_cooler_height_mm": 165, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "NZXT", "model": "H7 Flow", "supported_motherboard_form_factors": ["E-ATX", "ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 400, "max_cooler_height_mm": 185, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "be quiet!", "model": "Pure Base 500DX", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 369, "max_cooler_height_mm": 190, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Montech", "model": "AIR 903 MAX", "supported_motherboard_form_factors": ["E-ATX", "ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 400, "max_cooler_height_mm": 180, "psu_form_factors": ["ATX"], "verified": false},
+    {"brand": "Cooler Master", "model": "MasterBox NR200P", "supported_motherboard_form_factors": ["Mini-ITX"], "max_gpu_length_mm": 330, "max_cooler_height_mm": 155, "psu_form_factors": ["SFX", "SFX-L"], "verified": false}
+  ]
+}

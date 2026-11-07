@@ -1,0 +1,15 @@
+{
+  "note": "Кулеры, заполненные вручную. LGA1851 использует то же крепление, что LGA1700. height_mm — только у башенных; у водянок radiator_mm. verified=false — не сверено с сайтом производителя.",
+  "items": [
+    {"brand": "Thermalright", "model": "Peerless Assassin 120 SE", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 155, "verified": false},
+    {"brand": "Thermalright", "model": "Phantom Spirit 120 SE", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 154, "verified": false},
+    {"brand": "Thermalright", "model": "Assassin X 120 Refined SE", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 148, "verified": false},
+    {"brand": "DeepCool", "model": "AK400", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 155, "max_tdp_w": 220, "verified": false},
+    {"brand": "DeepCool", "model": "AK620", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 160, "max_tdp_w": 260, "verified": false},
+    {"brand": "ARCTIC", "model": "Freezer 36", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 159, "verified": false},
+    {"brand": "Noctua", "model": "NH-D15 G2", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 168, "verified": false},
+    {"brand": "be quiet!", "model": "Dark Rock Pro 5", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 168, "verified": false},
+    {"brand": "ARCTIC", "model": "Liquid Freezer III 240", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "radiator_mm": 240, "verified": false},
+    {"brand": "ARCTIC", "model": "Liquid Freezer III 360", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "radiator_mm": 360, "verified": false}
+  ]
+}
