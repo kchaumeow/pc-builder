@@ -601,6 +601,12 @@ def test_m2_sata_drive_uses_m2_slot_not_sata_port():
     assert storage_fits_motherboard(build) == []
 
 
+def test_gpu_with_unknown_connectors_is_silent():
+    # Карты из датасета: разъёмы неизвестны
+    gpu = make_gpu().model_copy(update={"power_connectors": None})
+    assert psu_has_gpu_connectors(Build(psu=make_psu(pcie_8pin=0), gpu=gpu)) == []
+
+
 def test_storage_unknown_slots_is_silent():
     # Платы из датасета: число M.2 и SATA неизвестно
     build = Build(

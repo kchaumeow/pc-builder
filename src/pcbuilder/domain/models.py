@@ -1,3 +1,4 @@
+from decimal import Decimal
 from enum import StrEnum
 
 from pydantic import BaseModel, model_validator
@@ -200,3 +201,16 @@ class Build(BaseModel):
     psu: PowerSupply | None = None
     case: Case | None = None
     cooling: Cooling | None = None
+
+    
+# --- Предложения ---------------------------------------------------------------
+
+
+class Offer(BaseModel):
+    """Цена детали в конкретном источнике. Деталь — характеристики, которые не меняются;
+    предложение — цена и наличие, которые меняются каждый день и разные в каждом магазине."""
+
+    part_id: str
+    source: str  # "docyx", позже "geizhals", "mindfactory"...
+    price: Decimal  # деньги — не float: 0.1 + 0.2 != 0.3
+    currency: str = "USD"

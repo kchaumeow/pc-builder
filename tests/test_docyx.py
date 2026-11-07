@@ -1,6 +1,10 @@
+from decimal import Decimal
+import json
 import pytest
 
 from pcbuilder.domain.models import (
+    Cooling,
+    Cooling,
     MemoryType,
     MotherBoardFormFactor,
     PsuEfficiency,
@@ -14,6 +18,8 @@ from pcbuilder.sources.docyx import (
     detect_memory_type,
     extract_chipset,
     ghz_to_mhz,
+    load_offers,
+    load_offers_by_name,
     parse_cpu,
     parse_gpu,
     parse_memory,
@@ -21,6 +27,7 @@ from pcbuilder.sources.docyx import (
     parse_power_supply,
     parse_storage,
     slugify,
+    to_price,
 )
 
 # Записи — реальные строки из датасета
@@ -357,3 +364,46 @@ def test_same_name_hdd_and_ssd_get_different_id():
 def test_parse_storage_rejects(override):
     with pytest.raises(ValueError):
         parse_storage({**SAMSUNG_990_PRO, **override})
+
+
+# --- Цены --------------------------------------------------------------------------
+
+
+def write_jsonl(path, records):
+    path.write_text("\n".join(json.dumps(r) for r in records))
+    return path
+
+
+def test_to_price_is_exact():
+    assert to_price(94.99) == Decimal("94.99")
+    assert to_price(None) is None
+
+
+def test_load_offers_keeps_cheapest(tmp_path):
+    path = write_jsonl(tmp_path / "ssd.jsonl", [
+        {**SAMSUNG_990_PRO, "price": 169.99},
+        {**SAMSUNG_990_PRO, "price": 149.99},
+    ])
+    offers = load_offers(path, parse_storage)
+    assert len(offers) == 1
+    (offer,) = offers.values()
+    assert offer.price == Decimal("149.99")
+    assert offer.currency == "USD"
+
+
+def test_load_offers_skips_missing_price_and_rejected(tmp_path):
+    path = write_jsonl(tmp_path / "ssd.jsonl", [
+        {**SAMSUNG_990_PRO, "price": None},                          # нет цены
+        {**SAMSUNG_990_PRO, "interface": "mSATA", "price": 10.0},    # деталь не загружается
+    ])
+    assert load_offers(path, parse_storage) == {}
+
+
+def test_load_offers_by_name_ignores_case(tmp_path):
+    cooler = Cooling(id="cooler-x", brand="Lian Li", model="Lancool 216", sockets=["AM5"], height_mm=150)
+    path = write_jsonl(tmp_path / "case.jsonl", [
+        {"name": "Lian Li LANCOOL 216", "price": 111.97},
+        {"name": "Something Else", "price": 50},
+    ])
+    offers = load_offers_by_name(path, {cooler.id: cooler})
+    assert offers["cooler-x"].price == Decimal("111.97")

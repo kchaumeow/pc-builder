@@ -5,6 +5,7 @@
 лучше не загрузить деталь, чем загрузить с неправильными данными.
 """
 
+from decimal import Decimal
 import json
 import re
 from collections.abc import Callable, Iterator
@@ -17,6 +18,7 @@ from pcbuilder.domain.models import (
     MemoryType,
     Motherboard,
     MotherBoardFormFactor,
+    Offer,
     PowerSupply,
     PsuEfficiency,
     PsuFormFactor,
@@ -549,3 +551,59 @@ def parse_storage(record: dict) -> Storage:
         form_factor=detect_storage_form_factor(record),
         interface=detect_storage_interface(record),
     )
+
+# --- Цены --------------------------------------------------------------------------
+
+SOURCE = "docyx"
+CURRENCY = "USD"  # датасет — снимок американского PCPartPicker
+
+
+def to_price(value: float | int | None) -> Decimal | None:
+    if value is None:
+        return None
+
+    return Decimal(str(value))
+
+
+def keep_cheaper(offers: dict[str, Offer], offer: Offer) -> None:
+    existing = offers.get(offer.part_id)
+    if existing is None or offer.price < existing.price:
+        offers[offer.part_id] = offer
+
+
+def load_offers(path: Path, parse: Callable[[dict], Component]) -> dict[str, Offer]:
+    """Цены для деталей, которые загружает parse. Ключ — id детали.
+
+    Одна и та же деталь встречается в датасете несколько раз с разной ценой —
+    оставляем самую низкую. Записи без цены и записи, которые parse отклоняет, пропускаем.
+    """
+    offers: dict[str, Offer] = {}
+    for record in read_jsonl(path):
+        price = to_price(record.get("price"))
+        if price is None:
+            continue
+        try:
+            part = parse(record)
+        except (KeyError, ValueError):
+            continue
+        keep_cheaper(offers, Offer(part_id=part.id, source=SOURCE, price=price, currency=CURRENCY))
+    return offers
+
+
+def load_offers_by_name(path: Path, parts: dict[str, Component]) -> dict[str, Offer]:
+    """Цены для деталей из другого источника (справочников), найденных по названию.
+
+    Сравниваем без учёта регистра: в датасете «Lian Li LANCOOL 216», у нас «Lian Li Lancool 216».
+    """
+    by_name: dict[str, list[str]] = {}
+    for part in parts.values():
+        by_name.setdefault(part.name.lower(), []).append(part.id)
+
+    offers: dict[str, Offer] = {}
+    for record in read_jsonl(path):
+        price = to_price(record.get("price"))
+        if price is None:
+            continue
+        for part_id in by_name.get(record["name"].lower(), []):
+            keep_cheaper(offers, Offer(part_id=part_id, source=SOURCE, price=price, currency=CURRENCY))
+    return offers
