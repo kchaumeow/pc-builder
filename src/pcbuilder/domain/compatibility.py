@@ -136,6 +136,9 @@ def psu_has_gpu_connectors(build: Build) -> list[Issue]:
     if not (build.psu and build.gpu):
         return issues
 
+    if build.gpu.power_connectors is None:  # разъёмы карты неизвестны — проверять нечего
+        return issues
+
     psu, gpu = build.psu, build.gpu
     gpu_8_pin_connectors = gpu.power_connectors.count("8-pin")
     needs_12vhpwr = "12VHPWR" in gpu.power_connectors

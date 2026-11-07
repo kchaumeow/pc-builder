@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from pcbuilder.sources.docyx import (
     load_parts,
     parse_cpu,
+    parse_gpu,
     parse_memory,
     parse_motherboard,
     parse_power_supply,
@@ -66,6 +67,8 @@ CATEGORIES: dict[str, Category] = {
         count_fields=("type", "efficiency", "modular"),
     ),
     "video-card": Category(
+        parse=parse_gpu,
+        expected_reasons=("Unknown GPU chipset", "GPU length unknown"),
         count_fields=("chipset",),
         required_fields=("length", "memory"),
         top=60,

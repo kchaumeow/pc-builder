@@ -12,6 +12,7 @@ from pcbuilder.sources.docyx import (
     extract_chipset,
     ghz_to_mhz,
     parse_cpu,
+    parse_gpu,
     parse_memory,
     parse_motherboard,
     parse_power_supply,
@@ -258,3 +259,39 @@ def test_same_psu_name_different_wattage_gets_different_id():
 def test_parse_power_supply_rejects_tfx():
     with pytest.raises(ValueError):
         parse_power_supply({**MAG_A750GL, "type": "TFX"})
+
+SAPPHIRE_PULSE = {
+    "name": "Sapphire PULSE", "price": 749.99, "chipset": "Radeon RX 9070 XT",
+    "memory": 16, "core_clock": 2400, "boost_clock": 2970, "color": "Black", "length": 320,
+}
+
+
+def test_parse_gpu():
+    gpu = parse_gpu(SAPPHIRE_PULSE)
+    assert gpu.chipset == "Radeon RX 9070 XT"
+    assert gpu.vram_gb == 16
+    assert gpu.tdp_w == 304  # из справочника
+    assert gpu.length_mm == 320
+    assert gpu.power_connectors is None  # неизвестно, а не []
+
+
+def test_same_gpu_name_different_chipset_gets_different_id():
+    # «Sapphire PULSE» в датасете — и RX 9060 XT, и RX 9070 XT
+    a = parse_gpu(SAPPHIRE_PULSE)
+    b = parse_gpu({**SAPPHIRE_PULSE, "chipset": "Radeon RX 9060 XT", "length": 240})
+    assert a.id != b.id
+
+
+def test_parse_gpu_strips_lhr():
+    gpu = parse_gpu({**SAPPHIRE_PULSE, "chipset": "GeForce RTX 3070 LHR"})
+    assert gpu.chipset == "GeForce RTX 3070"
+
+
+@pytest.mark.parametrize("override", [
+    {"chipset": "GeForce GTX 1080"},    # вне охвата
+    {"chipset": "Quadro RTX 4000"},     # профессиональная
+    {"length": None},                    # без длины не проверить корпус
+])
+def test_parse_gpu_rejects(override):
+    with pytest.raises(ValueError):
+        parse_gpu({**SAPPHIRE_PULSE, **override})

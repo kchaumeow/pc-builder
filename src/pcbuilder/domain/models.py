@@ -122,10 +122,12 @@ class RamKit(Component):
 
 class GPU(Component):
     category: ComponentType = ComponentType.GPU
+    chipset: str  # "GeForce RTX 4070", "Radeon RX 9070 XT"
     vram_gb: int
     tdp_w: int
     length_mm: int
-    power_connectors: list[str]  # ["8-pin", "8-pin"] или ["12VHPWR"]
+    # ["8-pin", "8-pin"] или ["12VHPWR"]. None — неизвестно: разъёмы выбирает производитель карты
+    power_connectors: list[str] | None = None
     recommended_psu_w: int | None = None  # рекомендация для всей системы
 
 

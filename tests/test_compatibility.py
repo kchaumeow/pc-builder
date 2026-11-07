@@ -130,7 +130,8 @@ def make_gpu(
     return GPU(
         id="gpu-1",
         brand="NVIDIA",
-        model="RTX 4070",
+        model="Ventus 2X",
+        chipset="GeForce RTX 4070",
         tdp_w=tdp_w,
         recommended_psu_w=recommended_psu_w,
         power_connectors=power_connectors or ["8-pin", "8-pin"],

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from pcbuilder.domain.models import (
     CPU,
+    GPU,
     Component,
     MemoryType,
     Motherboard,
@@ -358,4 +359,121 @@ def parse_power_supply(record: dict) -> PowerSupply:
         modularity=MODULARITY.get(modular) if modular is not None else None,
         has_12vhpwr=detect_12vhpwr(name),
         # pcie_8pin и length_mm в датасете нет — остаются None
+    )
+
+# --- Видеокарты --------------------------------------------------------------------
+
+# Чипсет → эталонная мощность (Total Board Power), Вт. В датасете TDP нет — выводим.
+# Ключи — ровно как в датасете. Объём памяти в ключе важен: у RTX 3050 6GB и 8GB
+# мощность различается почти вдвое. Разъёмы питания отсюда не вывести —
+# их выбирает производитель карты, а не NVIDIA/AMD.
+# Охват: поколения, которые продаются новыми. Проф. карты (Quadro, RTX Ada, Arc Pro) не включены.
+GPU_TDP_W = {
+    # NVIDIA RTX 30
+    "GeForce RTX 3050 6GB": 70,
+    "GeForce RTX 3050 8GB": 130,
+    "GeForce RTX 3060 8GB": 170,
+    "GeForce RTX 3060 12GB": 170,
+    "GeForce RTX 3060 Ti": 200,
+    "GeForce RTX 3070": 220,
+    "GeForce RTX 3070 Ti": 290,
+    "GeForce RTX 3080 10GB": 320,
+    "GeForce RTX 3080 12GB": 350,
+    "GeForce RTX 3080 Ti": 350,
+    "GeForce RTX 3090": 350,
+    "GeForce RTX 3090 Ti": 450,
+    # NVIDIA RTX 40
+    "GeForce RTX 4060": 115,
+    "GeForce RTX 4060 Ti": 165,  # 8GB — 160, 16GB — 165; в датасете не различаются, берём больше
+    "GeForce RTX 4070": 200,
+    "GeForce RTX 4070 SUPER": 220,
+    "GeForce RTX 4070 Ti": 285,
+    "GeForce RTX 4070 Ti SUPER": 285,
+    "GeForce RTX 4080": 320,
+    "GeForce RTX 4080 SUPER": 320,
+    "GeForce RTX 4090": 450,
+    # NVIDIA RTX 50
+    "GeForce RTX 5050": 130,
+    "GeForce RTX 5060": 145,
+    "GeForce RTX 5060 Ti": 180,
+    "GeForce RTX 5070": 250,
+    "GeForce RTX 5070 Ti": 300,
+    "GeForce RTX 5080": 360,
+    "GeForce RTX 5090": 575,
+    # AMD RX 6000
+    "Radeon RX 6400": 53,
+    "Radeon RX 6500 XT": 107,
+    "Radeon RX 6600": 132,
+    "Radeon RX 6600 XT": 160,
+    "Radeon RX 6650 XT": 180,
+    "Radeon RX 6700": 175,
+    "Radeon RX 6700 XT": 230,
+    "Radeon RX 6750 XT": 250,
+    "Radeon RX 6800": 250,
+    "Radeon RX 6800 XT": 300,
+    "Radeon RX 6900 XT": 300,
+    "Radeon RX 6950 XT": 335,
+    # AMD RX 7000
+    "Radeon RX 7600": 165,
+    "Radeon RX 7600 XT": 190,
+    "Radeon RX 7700 XT": 245,
+    "Radeon RX 7800 XT": 263,
+    "Radeon RX 7900 GRE": 260,
+    "Radeon RX 7900 XT": 315,
+    "Radeon RX 7900 XTX": 355,
+    # AMD RX 9000
+    "Radeon RX 9060 XT": 160,  # 8GB — 150, 16GB — 160; берём больше
+    "Radeon RX 9070": 220,
+    "Radeon RX 9070 XT": 304,
+    # Intel Arc
+    "Arc A310": 75,
+    "Arc A380": 75,
+    "Arc A580": 185,
+    "Arc A750": 225,
+    "Arc A770": 225,
+    "Arc B570": 150,
+    "Arc B580": 190,
+}
+
+
+def normalize_gpu_chipset(chipset: str) -> str:
+    """LHR — версия с ограничением майнинга; по питанию не отличается, суффикс убираем."""
+    return chipset.removesuffix(" LHR")
+
+
+def gpu_id(record: dict, chipset: str) -> str:
+    # Название — линейка производителя («Sapphire PULSE»), часто без чипа.
+    parts = [
+        record["name"],
+        chipset,
+        f"{record['memory']}gb",
+        f"{record['length']}mm",
+        record.get("color") or "",
+    ]
+    return "gpu-" + slugify(" ".join(parts))
+
+
+def parse_gpu(record: dict) -> GPU:
+    name = record["name"]
+    raw_chipset = record.get("chipset")
+    if raw_chipset is None:
+        raise ValueError(f"Unknown GPU chipset None: {name}")
+
+    chipset = normalize_gpu_chipset(raw_chipset)
+    if chipset not in GPU_TDP_W:
+        raise ValueError(f"Unknown GPU chipset {raw_chipset!r}: {name}")
+
+    if record.get("length") is None:
+        raise ValueError(f"GPU length unknown: {name}")
+
+    brand, model = split_brand(name)
+    return GPU(
+        id=gpu_id(record, chipset),
+        brand=brand,
+        model=model,
+        chipset=chipset,
+        vram_gb=record["memory"],
+        tdp_w=GPU_TDP_W[chipset],
+        length_mm=record["length"],
+        # power_connectors и recommended_psu_w в датасете нет — остаются None
     )
