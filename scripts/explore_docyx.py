@@ -29,6 +29,7 @@ from pcbuilder.sources.docyx import (
     parse_memory,
     parse_motherboard,
     parse_power_supply,
+    parse_storage,
     read_jsonl,
 )
 
@@ -82,6 +83,10 @@ CATEGORIES: dict[str, Category] = {
         required_fields=("size",),
     ),
     "internal-hard-drive": Category(
+        parse=parse_storage,
+        expected_reasons=(
+            "Unsupported storage form factor", "Unsupported storage interface", "Unknown storage type",
+        ),
         count_fields=("type", "form_factor", "interface"),
     ),
 }

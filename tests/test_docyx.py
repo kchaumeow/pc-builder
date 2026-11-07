@@ -6,6 +6,9 @@ from pcbuilder.domain.models import (
     PsuEfficiency,
     PsuFormFactor,
     PsuModularity,
+    StorageFormFactor,
+    StorageInterface,
+    StorageMedia,
 )
 from pcbuilder.sources.docyx import (
     detect_memory_type,
@@ -16,6 +19,7 @@ from pcbuilder.sources.docyx import (
     parse_memory,
     parse_motherboard,
     parse_power_supply,
+    parse_storage,
     slugify,
 )
 
@@ -30,6 +34,7 @@ from pcbuilder.sources.docyx import (
     ("G.Skill Flare X5 32 GB", "g-skill-flare-x5-32-gb"),
     ("Black / Yellow", "black-yellow"),
     ("  (rev. 1.0)  ", "rev-1-0"),
+    ("Kingston SSDNow V+", "kingston-ssdnow-v-plus"),   # иначе совпало бы с «SSDNow V»
 ])
 def test_slugify(text, expected):
     assert slugify(text) == expected
@@ -295,3 +300,60 @@ def test_parse_gpu_strips_lhr():
 def test_parse_gpu_rejects(override):
     with pytest.raises(ValueError):
         parse_gpu({**SAPPHIRE_PULSE, **override})
+
+SAMSUNG_990_PRO = {
+    "name": "Samsung 990 Pro", "price": 149.99, "capacity": 2000, "price_per_gb": 0.075,
+    "type": "SSD", "cache": 2048, "form_factor": "M.2-2280", "interface": "M.2 PCIe 4.0 X4",
+}
+
+
+def test_parse_storage_nvme_ssd():
+    drive = parse_storage(SAMSUNG_990_PRO)
+    assert drive.brand == "Samsung"
+    assert drive.model == "990 Pro"
+    assert drive.capacity_gb == 2000
+    assert drive.media == StorageMedia.SSD
+    assert drive.form_factor == StorageFormFactor.M2
+    assert drive.interface == StorageInterface.NVME
+
+
+def test_parse_storage_hdd():
+    # У жёстких дисков в type — число оборотов, а 3.5 — число, не строка
+    drive = parse_storage({
+        **SAMSUNG_990_PRO, "name": "Seagate BarraCuda", "type": 7200,
+        "form_factor": 3.5, "interface": "SATA 6.0 Gb/s",
+    })
+    assert drive.media == StorageMedia.HDD
+    assert drive.form_factor == StorageFormFactor.INCH_3_5
+    assert drive.interface == StorageInterface.SATA
+
+
+def test_parse_storage_m2_sata():
+    # M.2 по форме, но SATA по интерфейсу — займёт M.2-слот
+    drive = parse_storage({**SAMSUNG_990_PRO, "interface": "M.2 SATA"})
+    assert drive.form_factor == StorageFormFactor.M2
+    assert drive.interface == StorageInterface.SATA
+
+
+def test_same_drive_name_different_capacity_gets_different_id():
+    a = parse_storage(SAMSUNG_990_PRO)
+    b = parse_storage({**SAMSUNG_990_PRO, "capacity": 4000})
+    assert a.id != b.id
+
+
+def test_same_name_hdd_and_ssd_get_different_id():
+    # «Western Digital Blue 1 ТБ 2.5"» в датасете — и жёсткий диск, и SSD
+    wd_blue = {**SAMSUNG_990_PRO, "name": "Western Digital Blue", "capacity": 1000,
+               "form_factor": 2.5, "interface": "SATA 6.0 Gb/s"}
+    assert parse_storage({**wd_blue, "type": "SSD"}).id != parse_storage({**wd_blue, "type": 5400}).id
+
+
+@pytest.mark.parametrize("override", [
+    {"form_factor": "mSATA", "interface": "mSATA"},      # mSATA — не SATA, хоть и содержит «SATA»
+    {"form_factor": "PCIe", "interface": "PCIe x4"},      # SSD-плата расширения
+    {"form_factor": 2.5, "interface": "SAS 12.0 Gb/s"},   # серверный SAS
+    {"type": None},                                        # тип неизвестен
+])
+def test_parse_storage_rejects(override):
+    with pytest.raises(ValueError):
+        parse_storage({**SAMSUNG_990_PRO, **override})

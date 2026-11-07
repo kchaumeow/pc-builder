@@ -22,6 +22,10 @@ from pcbuilder.domain.models import (
     PsuFormFactor,
     PsuModularity,
     RamKit,
+    Storage,
+    StorageFormFactor,
+    StorageInterface,
+    StorageMedia,
 )
 
 # --- Общее -------------------------------------------------------------------------
@@ -69,6 +73,7 @@ def load_parts[T: Component](
 
 
 def slugify(text: str) -> str:
+    text = text.replace("+", " plus ")
     text = text.lower()
     text = re.sub(r"[^a-z0-9]+", "-", text)
     return text.strip("-")
@@ -476,4 +481,71 @@ def parse_gpu(record: dict) -> GPU:
         tdp_w=GPU_TDP_W[chipset],
         length_mm=record["length"],
         # power_connectors и recommended_psu_w в датасете нет — остаются None
+    )
+
+# --- Накопители --------------------------------------------------------------------
+
+# В датасете 2.5 и 3.5 — числа, а M.2 — строки вида "M.2-2280". Все длины M.2 для нас
+# одно и то же: правило считает слоты, а не длину. mSATA и PCIe-карты — вне охвата.
+STORAGE_INCH_FORM_FACTORS = {
+    2.5: StorageFormFactor.INCH_2_5,
+    3.5: StorageFormFactor.INCH_3_5,
+}
+
+
+def detect_storage_form_factor(record: dict) -> StorageFormFactor:
+    value = record.get("form_factor")
+    if isinstance(value, (int, float)) and value in STORAGE_INCH_FORM_FACTORS:
+        return STORAGE_INCH_FORM_FACTORS[value]
+    if isinstance(value, str) and value.startswith("M.2"):
+        return StorageFormFactor.M2
+    raise ValueError(f"Unsupported storage form factor {value!r}: {record['name']}")
+
+
+def detect_storage_interface(record: dict) -> StorageInterface:
+    # Проверяем начало строки, а не вхождение, иначе "mSATA" сойдёт за SATA.
+    # Вне охвата: mSATA, SAS, U.2, PATA и PCIe-карты ("PCIe x4" — без "M.2" в начале).
+    value = record.get("interface")
+    if isinstance(value, str):
+        if value.startswith("M.2 PCIe"):
+            return StorageInterface.NVME
+        if value == "M.2 SATA" or value.startswith("SATA"):
+            return StorageInterface.SATA
+    raise ValueError(f"Unsupported storage interface {value!r}: {record['name']}")
+
+
+def detect_storage_media(record: dict) -> StorageMedia:
+    # "SSD" — строка; у жёстких дисков вместо этого число оборотов (7200, 5400...)
+    value = record.get("type")
+    if value == "SSD":
+        return StorageMedia.SSD
+    if isinstance(value, int):
+        return StorageMedia.HDD
+    raise ValueError(f"Unknown storage type {value!r}: {record['name']}")
+
+
+def storage_id(record: dict) -> str:
+    # Название — модель («Samsung 990 Pro»), объём — отдельный товар.
+    # Тип тоже нужен: «Western Digital Blue» — это и линейка HDD, и линейка SSD.
+    parts = [
+        record["name"],
+        str(record.get("type")),
+        f"{record['capacity']}gb",
+        str(record.get("form_factor")),
+        record.get("interface") or "",
+    ]
+    return "storage-" + slugify(" ".join(parts))
+
+
+def parse_storage(record: dict) -> Storage:
+    name = record["name"]
+    brand, model = split_brand(name)
+    return Storage(
+        id=storage_id(record),
+        brand=brand,
+        model=model,
+        capacity_gb=record["capacity"],
+        media=detect_storage_media(record),
+        form_factor=detect_storage_form_factor(record),
+        interface=detect_storage_interface(record),
     )
