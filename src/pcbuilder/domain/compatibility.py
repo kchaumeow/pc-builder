@@ -140,6 +140,7 @@ def psu_has_gpu_connectors(build: Build) -> list[Issue]:
     gpu_8_pin_connectors = gpu.power_connectors.count("8-pin")
     needs_12vhpwr = "12VHPWR" in gpu.power_connectors
 
+    # Число 8-pin проверяем, только если оно известно. 0 — это «точно нет», а не «неизвестно».
     if psu.pcie_8pin is not None and gpu_8_pin_connectors > psu.pcie_8pin:
         issues.append(
             _error(
@@ -147,17 +148,23 @@ def psu_has_gpu_connectors(build: Build) -> list[Issue]:
                 f"GPU requires {gpu_8_pin_connectors} 8-pin connectors, but PSU has only {psu.pcie_8pin}",
             )
         )
+
+    # Только известное «нет» (False). None — неизвестно, проверку пропускаем.
     if needs_12vhpwr and psu.has_12vhpwr is False:
         if psu.pcie_8pin is not None and psu.pcie_8pin < ADAPTER_MIN_8PIN:
-            issues.append(_error(
-                "PSU_MISSING_12VHPWR_CONNECTOR",
-                f"GPU requires 12VHPWR; PSU has no native cable and only {psu.pcie_8pin} 8-pin for an adapter",
-            ))
+            issues.append(
+                _error(
+                    "PSU_MISSING_12VHPWR_CONNECTOR",
+                    f"GPU requires 12VHPWR; PSU has no native cable and only {psu.pcie_8pin} 8-pin for an adapter",
+                )
+            )
         else:
-            issues.append(_warning(
-                "PSU_12VHPWR_VIA_ADAPTER",
-                "GPU requires 12VHPWR; PSU has no native cable — an adapter will be needed",
-            ))
+            issues.append(
+                _warning(
+                    "PSU_12VHPWR_VIA_ADAPTER",
+                    "GPU requires 12VHPWR; PSU has no native cable — an adapter will be needed",
+                )
+            )
     return issues
 
 
@@ -282,8 +289,7 @@ def storage_fits_motherboard(build: Build) -> list[Issue]:
     m2_count = sum(1 for s in build.storage if s.form_factor == StorageFormFactor.M2)
     sata_count = len(build.storage) - m2_count
 
-    
-
+    # Проверяем только известное: у плат из датасета число слотов и портов неизвестно (None)
     if mb.m2_slots is not None and m2_count > mb.m2_slots:
         issues.append(
             _error(

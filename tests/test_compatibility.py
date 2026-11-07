@@ -38,6 +38,7 @@ from pcbuilder.domain.models import PowerSupply as PSU
 # --- Фабрики -----------------------------------------------------------------------
 # Параметры — только то, что тесты меняют. Дефолты нейтральные:
 # все фабрики вместе дают совместимую сборку без единой претензии.
+# Значения передаются как есть, без `x or дефолт`: 0 и False — законные значения.
 
 
 def make_cpu(
@@ -53,7 +54,7 @@ def make_cpu(
         model="Ryzen 5 7600",
         socket=socket,
         tdp_w=tdp_w,
-        memory_types=memory_types or [MemoryType.DDR5],
+        memory_types=memory_types or [MemoryType.DDR5],  # пустой список бессмыслен — or допустим
         cores=6,
         threads=12,
         includes_cooler=includes_cooler,
@@ -67,8 +68,8 @@ def make_motherboard(
     memory_slots: int = 4,
     max_memory_gb: int = 192,
     form_factor: MotherBoardFormFactor = MotherBoardFormFactor.MICRO_ATX,
-    m2_slots: int = 2,
-    sata_ports: int = 4,
+    m2_slots: int | None = 2,
+    sata_ports: int | None = 4,
 ) -> Motherboard:
     return Motherboard(
         id="mb-1",
@@ -103,8 +104,8 @@ def make_ram(
 
 def make_psu(
     wattage_w: int = 750,
-    pcie_8pin: int | None = None,
-    has_12vhpwr: bool | None = None,
+    pcie_8pin: int | None = 2,
+    has_12vhpwr: bool | None = False,
     form_factor: PsuFormFactor = PsuFormFactor.ATX,
     length_mm: int | None = None,
 ) -> PSU:
@@ -203,6 +204,7 @@ def make_good_build(**overrides) -> Build:
     )
     return build.model_copy(update=overrides)
 
+
 def rules(issues) -> set[str]:
     """Коды сработавших правил — чтобы сравнивать без учёта порядка."""
     return {issue.rule for issue in issues}
@@ -222,16 +224,14 @@ def test_socket_mismatch_is_error():
 
 
 def test_socket_rule_silent_without_motherboard():
-    build = Build(cpu=make_cpu())
-    assert cpu_socket_matches_motherboard(build) == []
+    assert cpu_socket_matches_motherboard(Build(cpu=make_cpu())) == []
 
 
 # --- Память ↔ плата ----------------------------------------------------------------
 
 
 def test_ram_matches_motherboard_is_ok():
-    build = Build(motherboard=make_motherboard(), ram=make_ram())
-    assert ram_matches_motherboard(build) == []
+    assert ram_matches_motherboard(Build(motherboard=make_motherboard(), ram=make_ram())) == []
 
 
 def test_ram_memory_type_mismatch_is_error():
@@ -264,26 +264,19 @@ def test_ram_motherboard_reports_all_problems_at_once():
 
 
 def test_ram_motherboard_rule_silent_without_motherboard():
-    build = Build(ram=make_ram())
-    assert ram_matches_motherboard(build) == []
+    assert ram_matches_motherboard(Build(ram=make_ram())) == []
 
 
 # --- Память ↔ процессор ------------------------------------------------------------
 
 
 def test_ram_supported_by_cpu_is_ok():
-    build = Build(
-        cpu=make_cpu(memory_types=[MemoryType.DDR5]),
-        ram=make_ram(memory_type=MemoryType.DDR5),
-    )
+    build = Build(cpu=make_cpu(memory_types=[MemoryType.DDR5]), ram=make_ram(memory_type=MemoryType.DDR5))
     assert ram_matches_cpu(build) == []
 
 
 def test_ram_not_supported_by_cpu_is_error():
-    build = Build(
-        cpu=make_cpu(memory_types=[MemoryType.DDR5]),
-        ram=make_ram(memory_type=MemoryType.DDR4),
-    )
+    build = Build(cpu=make_cpu(memory_types=[MemoryType.DDR5]), ram=make_ram(memory_type=MemoryType.DDR4))
     assert rules(ram_matches_cpu(build)) == {"RAM_MEMORY_TYPE_NOT_SUPPORTED_BY_CPU"}
 
 
@@ -296,8 +289,7 @@ def test_cpu_with_two_memory_types_accepts_both():
 
 
 def test_ram_cpu_rule_silent_without_cpu():
-    build = Build(ram=make_ram())
-    assert ram_matches_cpu(build) == []
+    assert ram_matches_cpu(Build(ram=make_ram())) == []
 
 
 # --- Мощность БП -------------------------------------------------------------------
@@ -305,8 +297,7 @@ def test_ram_cpu_rule_silent_without_cpu():
 
 
 def test_estimated_power():
-    build = Build(cpu=make_cpu(), gpu=make_gpu())
-    assert estimated_power_w(build) == 340
+    assert estimated_power_w(Build(cpu=make_cpu(), gpu=make_gpu())) == 340
 
 
 def test_psu_exactly_at_requirement_is_ok():
@@ -320,14 +311,76 @@ def test_psu_one_watt_short_is_error():
     assert rules(issues) == {"PSU_WATTAGE_INSUFFICIENT"}
     assert issues[0].severity == Severity.ERROR
 
+
+def test_psu_without_gpu_needs_less_power():
+    # 75 + 65 = 140 Вт; ×1.25 → 175 Вт
+    assert psu_wattage_sufficient(Build(cpu=make_cpu(), psu=make_psu(wattage_w=175))) == []
+
+
+def test_psu_below_gpu_recommendation_is_warning():
+    build = Build(cpu=make_cpu(), gpu=make_gpu(recommended_psu_w=650), psu=make_psu(wattage_w=550))
+    issues = psu_wattage_sufficient(build)
+    assert rules(issues) == {"PSU_BELOW_GPU_RECOMMENDATION"}
+    assert issues[0].severity == Severity.WARNING
+
+
+def test_psu_below_requirement_and_recommendation_reports_both():
+    build = Build(cpu=make_cpu(), gpu=make_gpu(recommended_psu_w=650), psu=make_psu(wattage_w=400))
+    assert rules(psu_wattage_sufficient(build)) == {
+        "PSU_WATTAGE_INSUFFICIENT",
+        "PSU_BELOW_GPU_RECOMMENDATION",
+    }
+
+
+def test_psu_wattage_rule_silent_without_psu():
+    assert psu_wattage_sufficient(Build(cpu=make_cpu(), gpu=make_gpu())) == []
+
+
+# --- Разъёмы БП --------------------------------------------------------------------
+
+
+def test_psu_enough_8pin_is_ok():
+    build = Build(psu=make_psu(pcie_8pin=2), gpu=make_gpu(power_connectors=["8-pin", "8-pin"]))
+    assert psu_has_gpu_connectors(build) == []
+
+
+def test_psu_3_8pin_connectors_insufficient_is_error():
+    build = Build(psu=make_psu(pcie_8pin=2), gpu=make_gpu(power_connectors=["8-pin", "8-pin", "8-pin"]))
+    issues = psu_has_gpu_connectors(build)
+    assert rules(issues) == {"PSU_INSUFFICIENT_8PIN_CONNECTORS"}
+    assert issues[0].severity == Severity.ERROR
+
+
 def test_psu_with_zero_8pin_known_is_error():
     # 0 — это «точно нет», а не «неизвестно»
     build = Build(psu=make_psu(pcie_8pin=0), gpu=make_gpu(power_connectors=["8-pin", "8-pin"]))
     assert rules(psu_has_gpu_connectors(build)) == {"PSU_INSUFFICIENT_8PIN_CONNECTORS"}
 
+
+def test_psu_native_12vhpwr_is_ok():
+    build = Build(psu=make_psu(has_12vhpwr=True), gpu=make_gpu(power_connectors=["12VHPWR"]))
+    assert psu_has_gpu_connectors(build) == []
+
+
+def test_psu_12vhpwr_via_adapter_is_warning():
+    build = Build(psu=make_psu(pcie_8pin=2, has_12vhpwr=False), gpu=make_gpu(power_connectors=["12VHPWR"]))
+    issues = psu_has_gpu_connectors(build)
+    assert rules(issues) == {"PSU_12VHPWR_VIA_ADAPTER"}
+    assert issues[0].severity == Severity.WARNING
+
+
+def test_psu_12vhpwr_no_cable_no_adapter_is_error():
+    build = Build(psu=make_psu(pcie_8pin=1, has_12vhpwr=False), gpu=make_gpu(power_connectors=["12VHPWR"]))
+    issues = psu_has_gpu_connectors(build)
+    assert rules(issues) == {"PSU_MISSING_12VHPWR_CONNECTOR"}
+    assert issues[0].severity == Severity.ERROR
+
+
 def test_psu_unknown_connectors_is_silent_for_8pin_gpu():
-    build = Build(psu=make_psu(pcie_8pin=None, has_12vhpwr=None),
-                  gpu=make_gpu(power_connectors=["8-pin", "8-pin", "8-pin"]))
+    build = Build(
+        psu=make_psu(pcie_8pin=None, has_12vhpwr=None),
+        gpu=make_gpu(power_connectors=["8-pin", "8-pin", "8-pin"]),
+    )
     assert psu_has_gpu_connectors(build) == []
 
 
@@ -342,86 +395,9 @@ def test_psu_no_12vhpwr_unknown_8pin_is_adapter_warning():
     assert rules(issues) == {"PSU_12VHPWR_VIA_ADAPTER"}
     assert issues[0].severity == Severity.WARNING
 
-def test_psu_without_gpu_needs_less_power():
-    # 75 + 65 = 140 Вт; ×1.25 → 175 Вт
-    build = Build(cpu=make_cpu(), psu=make_psu(wattage_w=175))
-    assert psu_wattage_sufficient(build) == []
-
-
-def test_psu_below_gpu_recommendation_is_warning():
-    build = Build(
-        cpu=make_cpu(),
-        gpu=make_gpu(recommended_psu_w=650),
-        psu=make_psu(wattage_w=550),
-    )
-    issues = psu_wattage_sufficient(build)
-    assert rules(issues) == {"PSU_BELOW_GPU_RECOMMENDATION"}
-    assert issues[0].severity == Severity.WARNING
-
-
-def test_psu_below_requirement_and_recommendation_reports_both():
-    build = Build(
-        cpu=make_cpu(),
-        gpu=make_gpu(recommended_psu_w=650),
-        psu=make_psu(wattage_w=400),
-    )
-    assert rules(psu_wattage_sufficient(build)) == {
-        "PSU_WATTAGE_INSUFFICIENT",
-        "PSU_BELOW_GPU_RECOMMENDATION",
-    }
-
-
-def test_psu_wattage_rule_silent_without_psu():
-    build = Build(cpu=make_cpu(), gpu=make_gpu())
-    assert psu_wattage_sufficient(build) == []
-
-
-# --- Разъёмы БП --------------------------------------------------------------------
-
-
-def test_psu_enough_8pin_is_ok():
-    build = Build(psu=make_psu(pcie_8pin=2), gpu=make_gpu(power_connectors=["8-pin", "8-pin"]))
-    assert psu_has_gpu_connectors(build) == []
-
-
-def test_psu_3_8pin_connectors_insufficient_is_error():
-    build = Build(
-        psu=make_psu(pcie_8pin=2),
-        gpu=make_gpu(power_connectors=["8-pin", "8-pin", "8-pin"]),
-    )
-    issues = psu_has_gpu_connectors(build)
-    assert rules(issues) == {"PSU_INSUFFICIENT_8PIN_CONNECTORS"}
-    assert issues[0].severity == Severity.ERROR
-
-
-def test_psu_native_12vhpwr_is_ok():
-    build = Build(psu=make_psu(has_12vhpwr=True), gpu=make_gpu(power_connectors=["12VHPWR"]))
-    assert psu_has_gpu_connectors(build) == []
-
-
-def test_psu_12vhpwr_via_adapter_is_warning():
-    build = Build(
-        psu=make_psu(pcie_8pin=2, has_12vhpwr=False),
-        gpu=make_gpu(power_connectors=["12VHPWR"]),
-    )
-    issues = psu_has_gpu_connectors(build)
-    assert rules(issues) == {"PSU_12VHPWR_VIA_ADAPTER"}
-    assert issues[0].severity == Severity.WARNING
-
-
-def test_psu_12vhpwr_no_cable_no_adapter_is_error():
-    build = Build(
-        psu=make_psu(pcie_8pin=1, has_12vhpwr=False),
-        gpu=make_gpu(power_connectors=["12VHPWR"]),
-    )
-    issues = psu_has_gpu_connectors(build)
-    assert rules(issues) == {"PSU_MISSING_12VHPWR_CONNECTOR"}
-    assert issues[0].severity == Severity.ERROR
-
 
 def test_psu_connectors_rule_silent_without_gpu():
-    build = Build(psu=make_psu(pcie_8pin=0))
-    assert psu_has_gpu_connectors(build) == []
+    assert psu_has_gpu_connectors(Build(psu=make_psu(pcie_8pin=0))) == []
 
 
 # --- Плата ↔ корпус ----------------------------------------------------------------
@@ -439,10 +415,7 @@ def test_motherboard_does_not_fit_case_is_error():
     build = Build(
         motherboard=make_motherboard(form_factor=MotherBoardFormFactor.ATX),
         case=make_case(
-            supported_motherboard_form_factors=[
-                MotherBoardFormFactor.MICRO_ATX,
-                MotherBoardFormFactor.MINI_ITX,
-            ]
+            supported_motherboard_form_factors=[MotherBoardFormFactor.MICRO_ATX, MotherBoardFormFactor.MINI_ITX]
         ),
     )
     issues = motherboard_fits_case(build)
@@ -462,13 +435,11 @@ def test_motherboard_case_rule_silent_without_motherboard():
 
 
 def test_gpu_exactly_at_case_limit_is_ok():
-    build = Build(gpu=make_gpu(length_mm=320), case=make_case(max_gpu_length_mm=320))
-    assert gpu_fits_case(build) == []
+    assert gpu_fits_case(Build(gpu=make_gpu(length_mm=320), case=make_case(max_gpu_length_mm=320))) == []
 
 
 def test_gpu_one_mm_too_long_is_error():
-    build = Build(gpu=make_gpu(length_mm=321), case=make_case(max_gpu_length_mm=320))
-    issues = gpu_fits_case(build)
+    issues = gpu_fits_case(Build(gpu=make_gpu(length_mm=321), case=make_case(max_gpu_length_mm=320)))
     assert rules(issues) == {"GPU_TOO_LONG_FOR_CASE"}
     assert issues[0].severity == Severity.ERROR
 
@@ -522,30 +493,24 @@ def test_psu_form_factor_supported_is_ok():
 
 
 def test_psu_form_factor_not_supported_is_error():
-    build = Build(
-        psu=make_psu(form_factor=PsuFormFactor.ATX),
-        case=make_case(psu_form_factors=[PsuFormFactor.SFX]),
-    )
+    build = Build(psu=make_psu(form_factor=PsuFormFactor.ATX), case=make_case(psu_form_factors=[PsuFormFactor.SFX]))
     issues = psu_fits_case(build)
     assert rules(issues) == {"PSU_FORM_FACTOR_NOT_SUPPORTED_BY_CASE"}
     assert issues[0].severity == Severity.ERROR
 
 
 def test_psu_exactly_at_case_length_limit_is_ok():
-    build = Build(psu=make_psu(length_mm=160), case=make_case(max_psu_length_mm=160))
-    assert psu_fits_case(build) == []
+    assert psu_fits_case(Build(psu=make_psu(length_mm=160), case=make_case(max_psu_length_mm=160))) == []
 
 
 def test_psu_one_mm_too_long_is_error():
-    build = Build(psu=make_psu(length_mm=161), case=make_case(max_psu_length_mm=160))
-    issues = psu_fits_case(build)
+    issues = psu_fits_case(Build(psu=make_psu(length_mm=161), case=make_case(max_psu_length_mm=160)))
     assert rules(issues) == {"PSU_TOO_LONG_FOR_CASE"}
     assert issues[0].severity == Severity.ERROR
 
 
 def test_psu_length_unchecked_when_case_limit_unknown():
-    build = Build(psu=make_psu(length_mm=250), case=make_case(max_psu_length_mm=None))
-    assert psu_fits_case(build) == []
+    assert psu_fits_case(Build(psu=make_psu(length_mm=250), case=make_case(max_psu_length_mm=None))) == []
 
 
 def test_psu_case_reports_both_problems():
@@ -586,20 +551,17 @@ def test_cooler_socket_rule_silent_without_cooler():
 
 
 def test_cooler_exactly_at_tdp_is_ok():
-    build = Build(cpu=make_cpu(tdp_w=120), cooling=make_cooling(max_tdp_w=120))
-    assert cooler_handles_tdp(build) == []
+    assert cooler_handles_tdp(Build(cpu=make_cpu(tdp_w=120), cooling=make_cooling(max_tdp_w=120))) == []
 
 
 def test_cooler_tdp_too_low_is_warning():
-    build = Build(cpu=make_cpu(tdp_w=170), cooling=make_cooling(max_tdp_w=150))
-    issues = cooler_handles_tdp(build)
+    issues = cooler_handles_tdp(Build(cpu=make_cpu(tdp_w=170), cooling=make_cooling(max_tdp_w=150)))
     assert rules(issues) == {"COOLER_TDP_TOO_LOW_FOR_CPU"}
     assert issues[0].severity == Severity.WARNING
 
 
 def test_cooler_without_tdp_rating_is_silent():
-    build = Build(cpu=make_cpu(tdp_w=250), cooling=make_cooling(max_tdp_w=None))
-    assert cooler_handles_tdp(build) == []
+    assert cooler_handles_tdp(Build(cpu=make_cpu(tdp_w=250), cooling=make_cooling(max_tdp_w=None))) == []
 
 
 # --- Накопители ↔ плата ------------------------------------------------------------
@@ -619,10 +581,7 @@ def test_storage_fits_motherboard_is_ok():
 
 
 def test_too_many_m2_drives_is_error():
-    build = Build(
-        motherboard=make_motherboard(m2_slots=1),
-        storage=[make_storage(), make_storage()],
-    )
+    build = Build(motherboard=make_motherboard(m2_slots=1), storage=[make_storage(), make_storage()])
     issues = storage_fits_motherboard(build)
     assert rules(issues) == {"STORAGE_TOO_MANY_M2"}
     assert issues[0].severity == Severity.ERROR
@@ -630,19 +589,22 @@ def test_too_many_m2_drives_is_error():
 
 def test_too_many_sata_drives_is_error():
     sata_ssd = make_storage(StorageFormFactor.INCH_2_5, StorageInterface.SATA)
-    build = Build(
-        motherboard=make_motherboard(sata_ports=4),
-        storage=[sata_ssd] * 5,
-    )
+    build = Build(motherboard=make_motherboard(sata_ports=4), storage=[sata_ssd] * 5)
     assert rules(storage_fits_motherboard(build)) == {"STORAGE_TOO_MANY_SATA"}
 
 
 def test_m2_sata_drive_uses_m2_slot_not_sata_port():
     # Crucial MX500 M.2: интерфейс SATA, но физически занимает M.2-слот
     m2_sata = make_storage(StorageFormFactor.M2, StorageInterface.SATA)
+    build = Build(motherboard=make_motherboard(m2_slots=1, sata_ports=0), storage=[m2_sata])
+    assert storage_fits_motherboard(build) == []
+
+
+def test_storage_unknown_slots_is_silent():
+    # Платы из датасета: число M.2 и SATA неизвестно
     build = Build(
-        motherboard=make_motherboard(m2_slots=1, sata_ports=0),
-        storage=[m2_sata],
+        motherboard=make_motherboard(m2_slots=None, sata_ports=None),
+        storage=[make_storage(), make_storage(StorageFormFactor.INCH_2_5, StorageInterface.SATA)],
     )
     assert storage_fits_motherboard(build) == []
 
@@ -659,28 +621,23 @@ def test_storage_rule_silent_without_motherboard():
 
 
 def test_cpu_with_boxed_cooler_needs_no_cooler():
-    build = Build(cpu=make_cpu(includes_cooler=True))
-    assert cpu_has_cooling(build) == []
+    assert cpu_has_cooling(Build(cpu=make_cpu(includes_cooler=True))) == []
 
 
 def test_cpu_without_any_cooling_is_error():
-    build = Build(cpu=make_cpu(includes_cooler=False))
-    assert rules(cpu_has_cooling(build)) == {"CPU_NO_COOLING"}
+    assert rules(cpu_has_cooling(Build(cpu=make_cpu(includes_cooler=False)))) == {"CPU_NO_COOLING"}
 
 
 def test_separate_cooler_covers_missing_boxed_one():
-    build = Build(cpu=make_cpu(includes_cooler=False), cooling=make_cooling())
-    assert cpu_has_cooling(build) == []
+    assert cpu_has_cooling(Build(cpu=make_cpu(includes_cooler=False), cooling=make_cooling())) == []
 
 
 def test_igpu_without_gpu_is_ok():
-    build = Build(cpu=make_cpu(integrated_graphics=True))
-    assert has_graphics_output(build) == []
+    assert has_graphics_output(Build(cpu=make_cpu(integrated_graphics=True))) == []
 
 
 def test_no_gpu_and_no_igpu_is_error():
-    build = Build(cpu=make_cpu(integrated_graphics=False))
-    assert rules(has_graphics_output(build)) == {"NO_GRAPHICS_OUTPUT"}
+    assert rules(has_graphics_output(Build(cpu=make_cpu(integrated_graphics=False)))) == {"NO_GRAPHICS_OUTPUT"}
 
 
 def test_graphics_rule_silent_without_cpu():
@@ -700,8 +657,7 @@ def test_empty_build_has_no_issues():
 
 
 def test_partial_build_ignores_missing_cooler():
-    build = Build(cpu=make_cpu(includes_cooler=False))
-    assert check(build) == []
+    assert check(Build(cpu=make_cpu(includes_cooler=False))) == []
 
 
 def test_complete_check_reports_missing_cooler_once():
@@ -712,8 +668,5 @@ def test_complete_check_reports_missing_cooler_once():
 
 
 def test_check_collects_issues_from_several_rules():
-    build = make_good_build(
-        motherboard=make_motherboard(socket="LGA1700"),
-        gpu=make_gpu(length_mm=400),
-    )
+    build = make_good_build(motherboard=make_motherboard(socket="LGA1700"), gpu=make_gpu(length_mm=400))
     assert rules(check(build)) == {"CPU_SOCKET_MISMATCH", "GPU_TOO_LONG_FOR_CASE"}

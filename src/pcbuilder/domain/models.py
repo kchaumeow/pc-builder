@@ -53,6 +53,22 @@ class PsuFormFactor(StrEnum):
     SFX_L = "SFX-L"
 
 
+class PsuModularity(StrEnum):
+    FULL = "full"
+    SEMI = "semi"
+    NONE = "none"
+
+
+class PsuEfficiency(StrEnum):
+    # Порядок объявления = порядок качества: от худшего к лучшему
+    PLUS = "80 Plus"
+    BRONZE = "80 Plus Bronze"
+    SILVER = "80 Plus Silver"
+    GOLD = "80 Plus Gold"
+    PLATINUM = "80 Plus Platinum"
+    TITANIUM = "80 Plus Titanium"
+
+
 # --- Детали --------------------------------------------------------------------
 
 
@@ -77,19 +93,20 @@ class CPU(Component):
     integrated_graphics: bool = False
     includes_cooler: bool = False
     cores: int
-    threads: int | None = None
-    base_clock_mhz: float | None = None
-    boost_clock_mhz: float | None = None
+    threads: int | None = None  # в датасете нет; «ядра × 2» неверно для Intel 12+
+    base_clock_mhz: int | None = None
+    boost_clock_mhz: int | None = None
 
 
 class Motherboard(Component):
     category: ComponentType = ComponentType.MOTHERBOARD
     socket: str
-    chipset: str | None = None
+    chipset: str
     form_factor: MotherBoardFormFactor
     memory_type: MemoryType
     memory_slots: int
     max_memory_gb: int
+    # None — «неизвестно» (в датасете нет), 0 — «известно: нет»
     sata_ports: int | None = None
     m2_slots: int | None = None
 
@@ -137,18 +154,15 @@ class Storage(Component):
             return "NVMe SSD"
         return "SATA SSD"
 
-class PsuModularity(StrEnum):
-    FULL = "FULL"
-    SEMI = "SEMI"
-    NONE = "NONE"
 
 class PowerSupply(Component):
     category: ComponentType = ComponentType.POWER_SUPPLY
     wattage_w: int
-    efficiency_rating: str | None = None  # "80 Plus Bronze", "80 Plus Gold"
-    modular: PsuModularity = PsuModularity.NONE
+    efficiency: PsuEfficiency | None = None
+    modularity: PsuModularity | None = None
     form_factor: PsuFormFactor = PsuFormFactor.ATX
     length_mm: int | None = None
+    # None — «неизвестно», 0 / False — «известно: нет»
     pcie_8pin: int | None = None
     has_12vhpwr: bool | None = None
 
