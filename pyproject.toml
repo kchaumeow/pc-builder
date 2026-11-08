@@ -2,7 +2,7 @@
 name = "pcbuilder"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.7"]
+dependencies = ["pydantic>=2.7", "fastapi>=0.162", "uvicorn>=0.54"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.17", "pre-commit>=4.7"]

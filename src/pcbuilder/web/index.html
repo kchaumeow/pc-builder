@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pcbuilder — сборка ПК под бюджет</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Палитра печатной платы: маска, шелкография, золото контактных площадок */
+    :root {
+      --mask: #0f3d2e;        /* фон — зелёная паяльная маска */
+      --mask-raised: #14503c; /* поля ввода и строки */
+      --trace: #2f7a5c;       /* линии и рамки — дорожки */
+      --silk: #eef2e6;        /* основной текст — шелкография */
+      --silk-muted: #a9c4b5;  /* второстепенный текст */
+      --pad: #d9ad3c;         /* акцент — золото площадок */
+      --warn: #f0a35e;
+      --error: #ff8a7a;
+
+      --display: "Chakra Petch", "Bahnschrift", "DIN Alternate", system-ui, sans-serif;
+      --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--mask);
+      color: var(--silk);
+      font: 400 17px/1.5 var(--body);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+
+    a { color: var(--pad); }
+
+    :focus-visible {
+      outline: 2px solid var(--pad);
+      outline-offset: 3px;
+    }
+
+    /* --- Шапка --- */
+    .brand {
+      font: 600 15px/1 var(--display);
+      color: var(--silk-muted);
+      margin: 0 0 20px;
+    }
+
+    h1 {
+      font: 700 clamp(34px, 6vw, 56px)/1.05 var(--display);
+      margin: 0 0 12px;
+      letter-spacing: -0.01em;
+    }
+
+    .lead {
+      max-width: 62ch;
+      color: var(--silk-muted);
+      margin: 0 0 40px;
+    }
+
+    /* --- Форма --- */
+    form {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(130px, 1fr));
+      gap: 20px 24px;
+      align-items: end;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--trace);
+    }
+
+    .field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+    label, legend {
+      font: 500 15px/1.2 var(--body);
+      color: var(--silk-muted);
+      padding: 0;
+    }
+
+    .budget-input {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      border-bottom: 2px solid var(--pad);
+    }
+
+    .budget-input input {
+      width: 100%;
+      min-width: 0;
+      background: none;
+      border: 0;
+      color: var(--silk);
+      font: 700 clamp(40px, 7vw, 64px)/1.1 var(--display);
+      font-variant-numeric: tabular-nums;
+      padding: 0;
+    }
+    .budget-input input:focus-visible { outline: none; }
+    .budget-input:focus-within { border-bottom-color: var(--silk); }
+
+    .budget-input span {
+      font: 600 28px/1 var(--display);
+      color: var(--pad);
+    }
+
+    select {
+      appearance: none;
+      background: var(--mask-raised)
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23a9c4b5' stroke-width='1.6'/%3E%3C/svg%3E")
+        no-repeat right 12px center;
+      border: 1px solid var(--trace);
+      border-radius: 4px;
+      color: var(--silk);
+      font: 500 17px/1 var(--body);
+      padding: 12px 36px 12px 12px;
+      width: 100%;
+    }
+
+    fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--trace);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+    .segmented label {
+      text-align: center;
+      padding: 12px 8px;
+      color: var(--silk);
+      background: var(--mask-raised);
+      cursor: pointer;
+    }
+    .segmented label + input + label { border-left: 1px solid var(--trace); }
+    .segmented input:checked + label { background: var(--pad); color: var(--mask); font-weight: 600; }
+    .segmented input:focus-visible + label { outline: 2px solid var(--silk); outline-offset: -4px; }
+
+    .actions {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: var(--pad);
+      color: var(--mask);
+      border: 0;
+      border-radius: 4px;
+      font: 700 18px/1 var(--display);
+      padding: 16px 28px;
+      cursor: pointer;
+    }
+    button:hover { background: #e8c25a; }
+    button:disabled { opacity: 0.6; cursor: progress; }
+
+    .hint { color: var(--silk-muted); font-size: 15px; margin: 0; }
+
+    /* --- Результат --- */
+    #result { padding-top: 36px; transition: opacity 0.2s; }
+    #result[aria-busy="true"] { opacity: 0.45; }
+
+    .empty, .error {
+      max-width: 60ch;
+      color: var(--silk-muted);
+      margin: 0;
+    }
+    .error { color: var(--error); }
+
+    .total {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 6px 16px;
+      margin-bottom: 20px;
+    }
+    .total strong {
+      font: 700 clamp(32px, 5vw, 44px)/1 var(--display);
+      font-variant-numeric: tabular-nums;
+    }
+    .total span { color: var(--silk-muted); }
+
+    /* Полоса бюджета: каждая деталь — участок, длина пропорциональна цене */
+    .rail {
+      display: flex;
+      height: 44px;
+      border: 1px solid var(--trace);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .rail-segment {
+      flex-basis: 0;
+      min-width: 2px;
+      border-right: 2px solid var(--mask);
+      transform-origin: left;
+      animation: grow 0.6s cubic-bezier(.2,.7,.2,1) both;
+    }
+    .rail-segment:last-child { border-right: 0; }
+    .rail-left {
+      flex-basis: 0;
+      background: repeating-linear-gradient(135deg, transparent 0 6px, var(--trace) 6px 7px);
+    }
+    @keyframes grow { from { transform: scaleX(0); } }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 18px;
+      list-style: none;
+      padding: 0;
+      margin: 0 0 32px;
+      font-size: 15px;
+      color: var(--silk-muted);
+    }
+    .legend li { display: flex; align-items: center; gap: 8px; }
+    .swatch { width: 12px; height: 12px; border-radius: 2px; flex: none; }
+    .swatch-left {
+      border: 1px solid var(--trace);
+      background: repeating-linear-gradient(135deg, transparent 0 3px, var(--trace) 3px 4px);
+    }
+
+    /* Список деталей */
+    .parts { width: 100%; border-collapse: collapse; }
+    .parts th {
+      text-align: left;
+      font: 500 15px/1.2 var(--body);
+      color: var(--silk-muted);
+      padding: 0 12px 10px 0;
+      border-bottom: 1px solid var(--trace);
+    }
+    .parts td {
+      padding: 14px 12px 14px 0;
+      border-bottom: 1px solid var(--mask-raised);
+      vertical-align: top;
+    }
+    .parts .category { color: var(--silk-muted); white-space: nowrap; }
+    .parts .name { font-weight: 600; }
+    .parts .details { display: block; color: var(--silk-muted); font-size: 15px; }
+    .parts .price, .parts th.price {
+      text-align: right;
+      padding-right: 0;
+      font-family: var(--display);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .checks { margin-top: 28px; }
+    .checks h2 { font: 600 20px/1.2 var(--display); margin: 0 0 10px; }
+    .checks ul { margin: 0; padding-left: 20px; }
+    .checks li { margin-bottom: 6px; }
+    .checks .ok { color: var(--pad); margin: 0; }
+    .sev-WARNING { color: var(--warn); }
+    .sev-ERROR { color: var(--error); }
+    .sev-label { font-weight: 600; }
+
+    footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--trace);
+      color: var(--silk-muted);
+      font-size: 14px;
+      max-width: 70ch;
+    }
+
+    @media (max-width: 760px) {
+      main { padding-top: 32px; }
+      form { grid-template-columns: 1fr 1fr; }
+      .field-budget, .field-profile { grid-column: 1 / -1; }
+      .parts thead { display: none; }
+      .parts tr { display: grid; grid-template-columns: 1fr auto; padding: 12px 0; border-bottom: 1px solid var(--mask-raised); }
+      .parts td { border: 0; padding: 0; }
+      .parts .category { grid-column: 1 / -1; font-size: 14px; }
+      .parts .price { align-self: start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .rail-segment { animation: none; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <p class="brand">pcbuilder</p>
+  <h1>Сборка ПК под бюджет</h1>
+  <p class="lead">Укажите сумму и для чего нужен компьютер. Программа переберёт совместимые комплектующие и соберёт ту конфигурацию, которая даст больше всего производительности за эти деньги.<span id="catalog-size"></span></p>
+
+  <form id="build-form">
+    <div class="field field-budget">
+      <label for="budget">Бюджет</label>
+      <div class="budget-input">
+        <input id="budget" name="budget" type="number" inputmode="numeric" min="300" max="100000" step="1" value="1200" required>
+        <span id="currency">$</span>
+      </div>
+    </div>
+
+    <fieldset class="field field-profile">
+      <legend>Для чего</legend>
+      <div class="segmented">
+        <input type="radio" name="profile" id="profile-gaming" value="gaming" checked>
+        <label for="profile-gaming">Игры</label>
+        <input type="radio" name="profile" id="profile-work" value="work">
+        <label for="profile-work">Работа</label>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label for="ram">Память не меньше</label>
+      <select id="ram" name="min_ram_gb">
+        <option value="16">16 ГБ</option>
+        <option value="32" selected>32 ГБ</option>
+        <option value="64">64 ГБ</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="storage">SSD не меньше</label>
+      <select id="storage" name="min_storage_gb">
+        <option value="500">500 ГБ</option>
+        <option value="1000" selected>1 ТБ</option>
+        <option value="2000">2 ТБ</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button type="submit" id="submit">Подобрать сборку</button>
+      <p class="hint">Для игр важнее видеокарта, для работы — многоядерный процессор.</p>
+    </div>
+  </form>
+
+  <section id="result" aria-live="polite">
+    <p class="empty">Здесь появится сборка: список деталей, цена каждой и проверка совместимости.</p>
+  </section>
+
+  <footer>
+    Цены — снимок американского PCPartPicker в долларах, не текущие предложения магазинов.
+    Оценки производительности приблизительные. Источник данных и ограничения описаны в
+    <a href="https://github.com/kchaumeow/pc-builder#данные-и-ограничения">README проекта</a>.
+  </footer>
+</main>
+
+<script>
+  // Цвет участка полосы бюджета для каждой категории. Соседние участки (в порядке
+  // деталей сборки) должны заметно отличаться — иначе их не сопоставить с легендой.
+  const COLORS = {
+    cpu: "#c8794a", gpu: "#d9ad3c", motherboard: "#6fb594", ram: "#b5e0cb",
+    storage: "#3f8f6f", psu: "#eef2e6", case: "#86a597", cooling: "#9cc4e4",
+  };
+  const SEVERITY_LABELS = { INFO: "Заметка", WARNING: "Предупреждение", ERROR: "Ошибка" };
+
+  const form = document.getElementById("build-form");
+  const result = document.getElementById("result");
+  const submit = document.getElementById("submit");
+
+  const money = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
+  const moneyExact = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const currencySign = (code) => (code === "USD" ? "$" : code);
+  const percent = (part, whole) => {
+    const share = Math.round((part / whole) * 100);
+    return share === 0 ? "<1%" : `${share}%`;
+  };
+
+  fetch("/api/catalog")
+    .then((response) => response.json())
+    .then((catalog) => {
+      if (catalog.currency) document.getElementById("currency").textContent = currencySign(catalog.currency);
+      const count = Object.values(catalog.categories).reduce((a, b) => a + b, 0);
+      document.getElementById("catalog-size").textContent = ` В каталоге ${money.format(count)} деталей с ценами.`;
+    });
+
+  // Текст из данных вставляем только через textContent — никакого innerHTML с чужими строками
+  function el(tag, props = {}, children = []) {
+    const node = document.createElement(tag);
+    Object.assign(node, props);
+    for (const child of [].concat(children)) {
+      node.append(child instanceof Node ? child : document.createTextNode(child));
+    }
+    return node;
+  }
+
+  function showMessage(text, className) {
+    result.replaceChildren(el("p", { className }, text));
+  }
+
+  function render(build) {
+    const total = Number(build.total);
+    const budget = Number(build.budget);
+    const currency = currencySign(build.currency);
+
+    const totalLine = el("div", { className: "total" }, [
+      el("strong", {}, `${money.format(total)} ${currency}`),
+      el("span", {}, `из ${money.format(budget)} ${currency}, остаётся ${money.format(budget - total)} ${currency}`),
+    ]);
+
+    // Полоса бюджета
+    const rail = el("div", { className: "rail", role: "img",
+      ariaLabel: "Распределение бюджета по деталям" });
+    build.parts.forEach((part, i) => {
+      const segment = el("div", { className: "rail-segment", title: `${part.label}: ${moneyExact.format(Number(part.price))} ${currency}` });
+      segment.style.flexGrow = Number(part.price);
+      segment.style.background = COLORS[part.category] || "#cfe3d6";
+      segment.style.animationDelay = `${i * 40}ms`;
+      rail.append(segment);
+    });
+    const left = budget - total;
+    if (left > 0) {
+      const leftover = el("div", { className: "rail-left", title: `Остаток: ${money.format(left)} ${currency}` });
+      leftover.style.flexGrow = left;
+      rail.append(leftover);
+    }
+
+    const legend = el("ul", { className: "legend" }, build.parts.map((part) => {
+      const swatch = el("span", { className: "swatch" });
+      swatch.style.background = COLORS[part.category] || "#cfe3d6";
+      return el("li", {}, [swatch, `${part.label} ${percent(Number(part.price), budget)}`]);
+    }));
+    if (left > 0) {
+      legend.append(el("li", {}, [el("span", { className: "swatch swatch-left" }), `Остаток ${percent(left, budget)}`]));
+    }
+
+    // Список деталей
+    const rows = build.parts.map((part) => el("tr", {}, [
+      el("td", { className: "category" }, part.label),
+      el("td", {}, [el("span", { className: "name" }, part.name), el("span", { className: "details" }, part.details)]),
+      el("td", { className: "price" }, `${moneyExact.format(Number(part.price))} ${currency}`),
+    ]));
+    const table = el("table", { className: "parts" }, [
+      el("thead", {}, el("tr", {}, [el("th", {}, "Деталь"), el("th", {}, "Модель"), el("th", { className: "price" }, "Цена")])),
+      el("tbody", {}, rows),
+    ]);
+
+    // Проверка совместимости
+    const checks = el("div", { className: "checks" }, el("h2", {}, "Совместимость"));
+    if (build.issues.length === 0) {
+      checks.append(el("p", { className: "ok" }, "Все детали совместимы, замечаний нет."));
+    } else {
+      checks.append(el("ul", {}, build.issues.map((issue) =>
+        el("li", { className: `sev-${issue.severity}` }, [
+          el("span", { className: "sev-label" }, `${SEVERITY_LABELS[issue.severity] || issue.severity}: `),
+          issue.message,
+        ]))));
+    }
+
+    const requirements = el("p", { className: "hint" }, `Требования: ${build.requirements}.`);
+    requirements.style.marginTop = "20px";
+
+    result.replaceChildren(totalLine, rail, legend, table, checks, requirements);
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const body = {
+      budget: data.get("budget"),
+      profile: data.get("profile"),
+      min_ram_gb: Number(data.get("min_ram_gb")),
+      min_storage_gb: Number(data.get("min_storage_gb")),
+    };
+
+    submit.disabled = true;
+    submit.textContent = "Подбираю…";
+    result.setAttribute("aria-busy", "true");
+    try {
+      let response;
+      try {
+        response = await fetch("/api/builds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        showMessage("Сервер не отвечает. Проверьте, что он запущен: uvicorn pcbuilder.api.app:app", "error");
+        return;
+      }
+      const isJson = (response.headers.get("Content-Type") || "").includes("application/json");
+      const payload = isJson ? await response.json() : null;
+      if (response.ok) {
+        render(payload);
+      } else if (response.status === 422) {
+        showMessage("Бюджет должен быть числом от 300 до 100 000.", "error");
+      } else if (response.status === 404 && payload?.detail) {
+        showMessage(payload.detail, "error");
+      } else {
+        showMessage(`Ошибка сервера (${response.status}). Подробности — в логе uvicorn.`, "error");
+      }
+    } finally {
+      result.removeAttribute("aria-busy");
+      submit.disabled = false;
+      submit.textContent = "Подобрать сборку";
+    }
+  });
+</script>
+</body>
+</html>
