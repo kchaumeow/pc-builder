@@ -3,7 +3,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, model_validator
 
-# --- Справочники ---------------------------------------------------------------
+# --- Reference values ----------------------------------------------------------
 
 
 class ComponentType(StrEnum):
@@ -60,7 +60,7 @@ class PsuModularity(StrEnum):
 
 
 class PsuEfficiency(StrEnum):
-    # Порядок объявления = порядок качества: от худшего к лучшему
+    # Declaration order = quality order, worst to best
     PLUS = "80 Plus"
     BRONZE = "80 Plus Bronze"
     SILVER = "80 Plus Silver"
@@ -69,7 +69,7 @@ class PsuEfficiency(StrEnum):
     TITANIUM = "80 Plus Titanium"
 
 
-# --- Детали --------------------------------------------------------------------
+# --- Parts ---------------------------------------------------------------------
 
 
 class Component(BaseModel):
@@ -77,8 +77,8 @@ class Component(BaseModel):
     category: ComponentType
     brand: str
     model: str
-    mpn: str | None = None  # код производителя — для матчинга между магазинами
-    ean: str | None = None  # штрихкод, та же цель
+    mpn: str | None = None  # manufacturer part number, for matching across shops
+    ean: str | None = None  # barcode, same purpose
 
     @property
     def name(self) -> str:
@@ -94,7 +94,9 @@ class CPU(Component):
     includes_cooler: bool = False
     cores: int
     architecture: str | None = None  # "Zen 4", "Raptor Lake"
-    threads: int | None = None  # в датасете нет; «ядра × 2» неверно для Intel 12+
+    threads: int | None = (
+        None  # not in the dataset; "cores x 2" is wrong for Intel 12th gen+
+    )
     base_clock_mhz: int | None = None
     boost_clock_mhz: int | None = None
 
@@ -107,7 +109,7 @@ class Motherboard(Component):
     memory_type: MemoryType
     memory_slots: int
     max_memory_gb: int
-    # None — «неизвестно» (в датасете нет), 0 — «известно: нет»
+    # None means "unknown" (not in the dataset), 0 means "known: none"
     sata_ports: int | None = None
     m2_slots: int | None = None
 
@@ -115,10 +117,10 @@ class Motherboard(Component):
 class RamKit(Component):
     category: ComponentType = ComponentType.RAM
     memory_type: MemoryType
-    capacity_gb: int  # суммарно на комплект
-    modules: int  # количество планок в комплекте
+    capacity_gb: int  # total for the kit
+    modules: int  # number of modules in the kit
     speed_mhz: int
-    cas_latency: int | None = None  # в тактах
+    cas_latency: int | None = None  # in clock cycles
 
 
 class GPU(Component):
@@ -127,18 +129,18 @@ class GPU(Component):
     vram_gb: int
     tdp_w: int
     length_mm: int
-    # ["8-pin", "8-pin"] или ["12VHPWR"]. None — неизвестно: разъёмы выбирает производитель карты
+    # ["8-pin", "8-pin"] or ["12VHPWR"]. None means unknown: connectors are chosen by the card maker
     power_connectors: list[str] | None = None
-    recommended_psu_w: int | None = None  # рекомендация для всей системы
+    recommended_psu_w: int | None = None  # recommendation for the whole system
 
 
 class Storage(Component):
     category: ComponentType = ComponentType.STORAGE
     capacity_gb: int
     media: StorageMedia
-    form_factor: StorageFormFactor  # решает, какой порт занят: M.2-слот или SATA
+    form_factor: StorageFormFactor  # decides which port is used: M.2 slot or SATA
     interface: StorageInterface
-    read_mb_s: int | None = None  # для ранжирования
+    read_mb_s: int | None = None  # for ranking
     write_mb_s: int | None = None
 
     @model_validator(mode="after")
@@ -147,9 +149,9 @@ class Storage(Component):
             self.interface == StorageInterface.NVME
             and self.form_factor != StorageFormFactor.M2
         ):
-            raise ValueError("NVMe бывает только в форм-факторе M.2")
+            raise ValueError("NVMe is only available in the M.2 form factor")
         if self.media == StorageMedia.HDD and self.form_factor == StorageFormFactor.M2:
-            raise ValueError("HDD не бывает в форм-факторе M.2")
+            raise ValueError("HDDs do not come in the M.2 form factor")
         return self
 
     @property
@@ -168,7 +170,7 @@ class PowerSupply(Component):
     modularity: PsuModularity | None = None
     form_factor: PsuFormFactor = PsuFormFactor.ATX
     length_mm: int | None = None
-    # None — «неизвестно», 0 / False — «известно: нет»
+    # None means "unknown", 0 / False means "known: none"
     pcie_8pin: int | None = None
     has_12vhpwr: bool | None = None
 
@@ -176,8 +178,8 @@ class PowerSupply(Component):
 class Cooling(Component):
     category: ComponentType = ComponentType.COOLING
     sockets: list[str]
-    height_mm: int | None = None  # у башенных; у водянок None
-    radiator_mm: int | None = None  # у водянок: 120 / 240 / 360
+    height_mm: int | None = None  # tower coolers; None for AIOs
+    radiator_mm: int | None = None  # AIOs: 120 / 240 / 360
     max_tdp_w: int | None = None
 
 
@@ -190,11 +192,11 @@ class Case(Component):
     max_psu_length_mm: int | None = None
 
 
-# --- Сборка --------------------------------------------------------------------
+# --- Build ---------------------------------------------------------------------
 
 
 class Build(BaseModel):
-    """Все поля опциональны: сборка подбирается деталь за деталью."""
+    """All fields are optional: a build is assembled part by part."""
 
     cpu: CPU | None = None
     motherboard: Motherboard | None = None
@@ -206,14 +208,14 @@ class Build(BaseModel):
     cooling: Cooling | None = None
 
 
-# --- Предложения ---------------------------------------------------------------
+# --- Offers --------------------------------------------------------------------
 
 
 class Offer(BaseModel):
-    """Цена детали в конкретном источнике. Деталь — характеристики, которые не меняются;
-    предложение — цена и наличие, которые меняются каждый день и разные в каждом магазине."""
+    """Price of a part from a specific source. A part holds specs that never change;
+    an offer holds price and availability, which change daily and differ between shops."""
 
     part_id: str
-    source: str  # "docyx", позже "geizhals", "mindfactory"...
-    price: Decimal  # деньги — не float: 0.1 + 0.2 != 0.3
+    source: str  # "docyx", later "geizhals", "mindfactory"...
+    price: Decimal  # money is not a float: 0.1 + 0.2 != 0.3
     currency: str = "USD"

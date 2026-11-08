@@ -1,9 +1,9 @@
-"""Оценки производительности: насколько одна деталь быстрее другой.
+"""Performance scores: how much faster one part is than another.
 
-ВАЖНО: это приблизительные оценки, а не результаты тестов. Они нужны, чтобы солвер
-мог сравнивать варианты, и годятся для этого — порядок величин правильный. Но перед
-тем как на них полагаться, их стоит заменить данными бенчмарков (TechPowerUp relative
-performance для видеокарт, PassMark / Cinebench для процессоров).
+IMPORTANT: these are rough estimates, not benchmark results. They let the solver
+compare options and are good enough for that — the orders of magnitude are right. But
+before relying on them, replace them with benchmark data (TechPowerUp relative
+performance for GPUs, PassMark / Cinebench for CPUs).
 """
 
 from collections.abc import Mapping
@@ -11,8 +11,8 @@ from dataclasses import dataclass
 
 from pcbuilder.domain.models import CPU, GPU
 
-# Относительная игровая производительность видеокарт, RTX 4090 = 100.
-# Приблизительно: растеризация в 1440p/4K, по порядку величин из сводных обзоров.
+# Relative gaming performance of GPUs, RTX 4090 = 100.
+# Approximate: 1440p/4K rasterization, orders of magnitude from aggregate reviews.
 GPU_PERFORMANCE: Mapping[str, float] = {
     # NVIDIA RTX 50
     "GeForce RTX 5090": 127,
@@ -80,7 +80,7 @@ GPU_PERFORMANCE: Mapping[str, float] = {
     "Arc A310": 5,
 }
 
-# Относительная скорость архитектуры на такт в играх (Zen 4 = 1.0). Приблизительно.
+# Relative per-clock gaming speed of each architecture (Zen 4 = 1.0). Approximate.
 ARCHITECTURE_IPC: Mapping[str, float] = {
     "Zen 2": 0.70,
     "Zen 3": 0.85,
@@ -93,12 +93,12 @@ ARCHITECTURE_IPC: Mapping[str, float] = {
 }
 UNKNOWN_ARCHITECTURE_IPC = 0.85
 
-X3D_GAMING_BONUS = 1.25  # 3D V-Cache: большой кэш заметно ускоряет игры
+X3D_GAMING_BONUS = 1.25  # 3D V-Cache: the large cache noticeably speeds up games
 
-# Чтобы оценки процессоров и видеокарт можно было сравнивать, обе шкалы приводим к 0–100:
-# у видеокарт 100 — RTX 4090, у процессоров 100 — сырая оценка эталонного процессора.
+# To make CPU and GPU scores comparable, both scales are normalized to 0–100:
+# for GPUs 100 is the RTX 4090, for CPUs 100 is the raw score of the reference CPU.
 CPU_GAMING_REFERENCE = 140.0  # ≈ Ryzen 7 9800X3D
-CPU_MULTICORE_REFERENCE = 98.0  # ≈ 16-ядерный Zen 5
+CPU_MULTICORE_REFERENCE = 98.0  # ≈ 16-core Zen 5
 
 
 def _ipc(cpu: CPU) -> float:
@@ -110,7 +110,7 @@ def _boost_ghz(cpu: CPU) -> float:
 
 
 def cpu_gaming_index(cpu: CPU) -> float:
-    """Игровая оценка процессора, 0–100. Для игр важны первые ~8 ядер; дальше прирост почти нулевой."""
+    """CPU gaming score, 0–100. Games use the first ~8 cores; beyond that the gain is nearly zero."""
     cores_factor = 0.7 + 0.3 * min(cpu.cores, 8) / 8
     raw = _ipc(cpu) * _boost_ghz(cpu) * cores_factor * 20
     if "X3D" in cpu.model:
@@ -119,32 +119,32 @@ def cpu_gaming_index(cpu: CPU) -> float:
 
 
 def cpu_multicore_index(cpu: CPU) -> float:
-    """Оценка для работы (рендер, компиляция), 0–100: здесь важны все ядра."""
+    """Workstation score (rendering, compiling), 0–100: every core counts here."""
     raw = _ipc(cpu) * _boost_ghz(cpu) * cpu.cores
     return round(100 * raw / CPU_MULTICORE_REFERENCE, 1)
 
 
 def gpu_index(gpu: GPU) -> float:
-    """Игровая оценка видеокарты, 0–100+ (RTX 4090 = 100)."""
+    """GPU gaming score, 0–100+ (RTX 4090 = 100)."""
     return GPU_PERFORMANCE.get(gpu.chipset, 0.0)
 
 
-# --- Профили -----------------------------------------------------------------------
+# --- Profiles ----------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class GamingProfile:
-    """Игры: производительность определяет узкое место.
+    """Gaming: performance is set by the bottleneck.
 
-    Кадр сначала готовит процессор, потом рисует видеокарта. Если одна из них медленнее,
-    вторая простаивает — поэтому оценка сборки — это минимум из двух, а не сумма.
-    Следствие: солвер не станет переплачивать за процессор, который видеокарта
-    всё равно не нагрузит, и наоборот.
+    The CPU prepares each frame, then the GPU renders it. If one is slower, the other
+    sits idle — so the build score is the minimum of the two, not the sum.
+    As a result, the solver won't overpay for a CPU the GPU can't keep busy anyway,
+    and vice versa.
     """
 
-    name: str = "игры"
-    # Сколько «видеокарты» способен прокормить процессор с оценкой 100.
-    # 1.2 — топовый игровой процессор полностью нагружает видеокарту уровня 120 (между 4090 и 5090).
+    name: str = "gaming"
+    # How much "GPU" a CPU scoring 100 can keep fed.
+    # 1.2: a top gaming CPU fully loads a GPU at level 120 (between the 4090 and 5090).
     cpu_feeds_gpu: float = 1.2
 
     def score(self, cpu: CPU, gpu: GPU) -> float:
@@ -153,9 +153,9 @@ class GamingProfile:
 
 @dataclass(frozen=True)
 class WorkstationProfile:
-    """Работа: процессор важнее, видеокарта помогает (ускорение рендера, монтаж)."""
+    """Workstation: the CPU matters more, the GPU helps (render acceleration, video editing)."""
 
-    name: str = "работа"
+    name: str = "workstation"
     cpu_weight: float = 0.7
     gpu_weight: float = 0.3
 

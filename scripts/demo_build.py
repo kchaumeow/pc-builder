@@ -1,9 +1,9 @@
-"""Первая сборка из настоящих данных: детали из датасета docyx + корпуса и кулеры из data/seeds.
+"""First build from real data: parts from the docyx dataset + cases and coolers from data/seeds.
 
-Детали выбираются простыми фильтрами — это ещё не подбор, а проверка, что все части
-проекта работают вместе. Подбор под бюджет — следующий шаг (солвер).
+Parts are picked with simple filters — this isn't a recommender yet, just a check that all
+parts of the project work together. Budget-based picking is the next step (the solver).
 
-Запуск из корня проекта:
+Run from the project root:
     python scripts/demo_build.py
 """
 
@@ -35,7 +35,7 @@ def first[T: Component](parts: Iterable[T], condition: Callable[[T], bool]) -> T
     for part in parts:
         if condition(part):
             return part
-    raise LookupError("Ни одна деталь не подошла под условие")
+    raise LookupError("No part matched the condition")
 
 
 cpus, _ = load_parts(DATASET / "cpu.jsonl", parse_cpu)
@@ -77,24 +77,24 @@ build = Build(
     cooling=coolers["cooler-thermalright-peerless-assassin-120-se"],
 )
 
-print("Сборка:")
+print("Build:")
 for label, part in [
     ("CPU", build.cpu),
-    ("Плата", build.motherboard),
-    ("Память", build.ram),
-    ("Видеокарта", build.gpu),
-    ("Диск", build.storage[0]),
-    ("БП", build.psu),
-    ("Корпус", build.case),
-    ("Кулер", build.cooling),
+    ("Motherboard", build.motherboard),
+    ("Memory", build.ram),
+    ("Graphics card", build.gpu),
+    ("Storage", build.storage[0]),
+    ("Power supply", build.psu),
+    ("Case", build.case),
+    ("CPU cooler", build.cooling),
 ]:
-    print(f"  {label:11} {part.name}")
+    print(f"  {label:14} {part.name}")
 
-print(f"\nОценка потребления: {estimated_power_w(build)} Вт")
+print(f"\nEstimated power draw: {estimated_power_w(build)} W")
 
 issues = check(build, complete=True)
-print(f"\nПроверка: {len(issues)} замечаний")
+print(f"\nCheck: {len(issues)} issues")
 for issue in issues:
     print(f"  [{issue.severity}] {issue.rule}: {issue.message}")
 if not issues:
-    print("  Совместимо ✓")
+    print("  Compatible ✓")

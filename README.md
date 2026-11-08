@@ -1,53 +1,53 @@
 # pcbuilder
 
-Подбор комплектующих для ПК: по бюджету и задаче собирает совместимую конфигурацию из реальных товаров с ценами.
+PC part picker: given a budget and a use case, it puts together a compatible configuration from real products with prices.
 
 ```
 $ python scripts/budget_demo.py 1200
 
-Профиль: игры. Требования: память ≥ 32 ГБ, планок ≥ 2; DDR5 ≥ 5600 МГц; NVMe SSD ≥ 1000 ГБ; БП не хуже 80 Plus Bronze
+Profile: gaming. Requirements: RAM ≥ 32 GB, ≥ 2 modules; DDR5 ≥ 5600 MHz; NVMe SSD ≥ 1000 GB; PSU 80 Plus Bronze or better
 
-=== Бюджет 1200 USD
-  CPU         Intel Core i5-14400F                     125.99
-  Видеокарта  Asus PRIME (Radeon RX 9070 XT)           612.98
-  Плата       ASRock H610M-HDV/M.2+ D5                  89.57
-  Память      TEAMGROUP T-Create Expert 32 GB           72.99
-  Диск        PNY CS1030                                49.99
-  БП          Apevia Prestige                           51.99
-  Корпус      Montech AIR 903 MAX                       74.99
-  Кулер       Thermalright Assassin X 120 Refined SE    17.89
-  Итого                                               1096.39
+=== Budget 1200 USD
+  CPU            Intel Core i5-14400F                     125.99
+  Graphics card  Asus PRIME (Radeon RX 9070 XT)           612.98
+  Motherboard    ASRock H610M-HDV/M.2+ D5                  89.57
+  Memory         TEAMGROUP T-Create Expert 32 GB           72.99
+  Storage        PNY CS1030                                49.99
+  Power supply   Apevia Prestige                           51.99
+  Case           Montech AIR 903 MAX                       74.99
+  CPU cooler     Thermalright Assassin X 120 Refined SE    17.89
+  Total                                                  1096.39
 ```
 
-## Возможности
+## Features
 
-- **Проверка совместимости** — 14 правил: сокет, тип и количество памяти, форм-факторы, длина видеокарты и высота кулера под корпус, мощность и разъёмы блока питания, слоты накопителей. Работает и для неполной сборки — поэтому подходит как для пошагового конструктора, так и для автоматического поиска.
-- **Загрузка реальных данных** — ~24 000 деталей из открытого снимка PCPartPicker с нормализацией: вывод сокета по микроархитектуре, типа памяти платы по названию и сокету, TDP видеокарты по чипсету.
-- **Достройка сборки** — задаёшь процессор и видеокарту, солвер подбирает остальное подешевле с учётом совместимости и требований к качеству.
-- **Подбор под бюджет** — задаёшь сумму и профиль («игры» или «работа»), получаешь сборку с лучшей оценкой, которая укладывается в бюджет.
+- **Compatibility checks** — 14 rules: socket, memory type and module count, form factors, graphics card length and cooler height vs. the case, PSU wattage and connectors, storage slots. Works on incomplete builds too, so it suits both a step-by-step builder and automatic search.
+- **Real data loading** — ~24,000 parts from an open PCPartPicker snapshot, normalized: socket inferred from microarchitecture, motherboard memory type from its name and socket, graphics card TDP from its chipset.
+- **Build completion** — pick a CPU and a graphics card, and the solver fills in the rest as cheaply as possible while respecting compatibility and quality requirements.
+- **Budget builds** — give an amount and a profile ("gaming" or "workstation") and get the highest-scoring build that fits the budget.
 
-## Как это работает
+## How it works
 
 ```mermaid
 flowchart LR
-    D[(Датасет docyx<br/>JSONL)] --> L[sources/docyx.py<br/>разбор и нормализация]
-    S[(data/seeds<br/>корпуса, кулеры)] --> SL[sources/seeds.py]
-    L --> C[catalog.py<br/>детали с ценами<br/>по категориям]
+    D[(docyx dataset<br/>JSONL)] --> L[sources/docyx.py<br/>parsing and normalization]
+    S[(data/seeds<br/>cases, coolers)] --> SL[sources/seeds.py]
+    L --> C[catalog.py<br/>priced parts<br/>by category]
     SL --> C
-    C --> SV[recommender/solver.py<br/>поиск с возвратом]
-    R[domain/compatibility.py<br/>правила] --> SV
-    SC[recommender/scores.py<br/>оценки производительности] --> B[recommender/budget.py<br/>подбор под бюджет]
+    C --> SV[recommender/solver.py<br/>backtracking search]
+    R[domain/compatibility.py<br/>rules] --> SV
+    SC[recommender/scores.py<br/>performance scores] --> B[recommender/budget.py<br/>budget builds]
     SV --> B
 ```
 
-1. **Источники** превращают чужие данные в доменные модели (`CPU`, `Motherboard`, `RamKit`, …) и цены (`Offer`). Запись, которую нельзя разобрать надёжно, отклоняется с причиной: лучше не загрузить деталь, чем загрузить с неправильными данными.
-2. **Каталог** собирает детали из всех источников и оставляет только те, у которых есть цена, отсортированные от дешёвых к дорогим.
-3. **Солвер** заполняет категории по очереди, перебирая кандидатов от дешёвых к дорогим. После каждой детали проверяется частичная сборка, а заглядывание вперёд отсекает выбор, после которого какую-то из следующих категорий уже не заполнить.
-4. **Подбор под бюджет** перебирает пары «процессор + видеокарта» от лучшей оценки к худшей. Пары, которые не укладываются в бюджет даже по нижней границе цены, отбрасываются без поиска. Для игр оценка — узкое место: `min(видеокарта, процессор × 1.2)`, поэтому солвер не переплачивает за процессор, который видеокарта всё равно не нагрузит.
+1. **Sources** turn third-party data into domain models (`CPU`, `Motherboard`, `RamKit`, …) and prices (`Offer`). A record that can't be parsed reliably is rejected with a reason: better to skip a part than to load it with wrong data.
+2. **The catalog** collects parts from all sources and keeps only those that have a price, sorted from cheapest to most expensive.
+3. **The solver** fills categories one at a time, trying candidates from cheapest to most expensive. The partial build is checked after each part, and lookahead prunes any choice that would leave one of the remaining categories impossible to fill.
+4. **Budget builds** go through "CPU + graphics card" pairs from best score to worst. Pairs that exceed the budget even at their lower price bound are discarded without a search. For gaming the score is the bottleneck: `min(graphics card, CPU × 1.2)`, so the solver doesn't overpay for a CPU the graphics card won't keep busy anyway.
 
-## Быстрый старт
+## Quick start
 
-Нужен **Python 3.12+**.
+Requires **Python 3.12+**.
 
 ```bash
 git clone https://github.com/kchaumeow/pc-builder.git
@@ -60,30 +60,30 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Для скриптов нужен датасет. Склонируй его **рядом** с проектом:
+The scripts need the dataset. Clone it **next to** the project:
 
 ```bash
 git clone --depth 1 https://github.com/docyx/pc-part-dataset.git ../pc-part-dataset
 ```
 
-По умолчанию скрипты ищут его в `~/projects/pc-part-dataset`. Другой путь задаётся переменной окружения:
+By default the scripts look for it in `~/projects/pc-part-dataset`. Set a different path with an environment variable:
 
 ```bash
 export DOCYX_PATH=../pc-part-dataset
 ```
 
-### Скрипты
+### Scripts
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `python scripts/budget_demo.py` | подбор под несколько бюджетов, профиль «игры» |
-| `python scripts/budget_demo.py 1500` | один бюджет |
-| `python scripts/budget_demo.py 2000 --work` | профиль «работа» — упор на многоядерность |
-| `python scripts/solve_demo.py` | достройка сборки вокруг заданных процессора и видеокарты |
-| `python scripts/demo_build.py` | ручная сборка из реальных деталей и её проверка |
-| `python scripts/explore_docyx.py [категория …]` | разведка датасета: значения полей, статистика загрузчиков, неожиданные отказы |
+| `python scripts/budget_demo.py` | builds for several budgets, "gaming" profile |
+| `python scripts/budget_demo.py 1500` | a single budget |
+| `python scripts/budget_demo.py 2000 --work` | "workstation" profile — favors multi-core performance |
+| `python scripts/solve_demo.py` | completes a build around a given CPU and graphics card |
+| `python scripts/demo_build.py` | hand-picked build from real parts, then checks it |
+| `python scripts/explore_docyx.py [category …]` | dataset exploration: field values, loader stats, unexpected rejections |
 
-### Из кода
+### From code
 
 ```python
 from decimal import Decimal
@@ -101,124 +101,124 @@ result = best_build(catalog, Decimal(1200), GAMING, Requirements(min_ram_gb=32))
 build = result.solution.build
 print(build.cpu.name, build.gpu.chipset, result.solution.total)
 
-check(build, complete=True)  # [] — замечаний нет
+check(build, complete=True)  # [] — no issues
 ```
 
-## Структура
+## Structure
 
 ```
 pc-builder/
 ├── src/pcbuilder/
 │   ├── domain/
-│   │   ├── models.py          # модели деталей, сборки и предложений
-│   │   └── compatibility.py   # правила совместимости и полноты, check()
+│   │   ├── models.py          # part, build and offer models
+│   │   └── compatibility.py   # compatibility and completeness rules, check()
 │   ├── sources/
-│   │   ├── docyx.py           # загрузчик датасета docyx: разбор, нормализация, цены
-│   │   └── seeds.py           # загрузчик справочников из data/seeds
+│   │   ├── docyx.py           # docyx dataset loader: parsing, normalization, prices
+│   │   └── seeds.py           # loader for reference data in data/seeds
 │   ├── recommender/
-│   │   ├── solver.py          # достройка сборки, требования к качеству
-│   │   ├── scores.py          # оценки производительности, профили
-│   │   └── budget.py          # подбор под бюджет
-│   └── catalog.py             # детали с ценами по категориям
-├── data/seeds/                # справочники, заполненные вручную
-├── scripts/                   # исследовательские и демо-скрипты
-└── tests/                     # тесты правил, загрузчиков, справочников и солвера
+│   │   ├── solver.py          # build completion, quality requirements
+│   │   ├── scores.py          # performance scores, profiles
+│   │   └── budget.py          # budget builds
+│   └── catalog.py             # priced parts by category
+├── data/seeds/                # hand-filled reference data
+├── scripts/                   # exploration and demo scripts
+└── tests/                     # tests for rules, loaders, reference data and the solver
 ```
 
-`domain/` не зависит ни от чего внешнего: это знания о железе, которые верны независимо от того, откуда пришли данные. Солвер работает только с каталогом и не знает об источниках — новый источник подключается в `catalog.py`, не трогая поиск.
+`domain/` has no external dependencies: it holds hardware knowledge that is true regardless of where the data came from. The solver only works with the catalog and knows nothing about sources — a new source is plugged in through `catalog.py` without touching the search.
 
-## Правила совместимости
+## Compatibility rules
 
-| Правило | Проверяет | Уровень |
+| Rule | Checks | Level |
 |---|---|---|
-| сокет | процессор ↔ плата | ошибка |
-| память ↔ плата | тип, число планок, максимальный объём | ошибка |
-| память ↔ процессор | поддерживаемые типы памяти | ошибка |
-| мощность БП | потребление × 1.25; рекомендация производителя видеокарты | ошибка / предупреждение |
-| разъёмы БП | 8-pin; 12VHPWR напрямую или через переходник | ошибка / предупреждение |
-| плата ↔ корпус | форм-фактор | ошибка |
-| видеокарта ↔ корпус | длина | ошибка |
-| кулер ↔ корпус | высота башни | ошибка |
-| БП ↔ корпус | форм-фактор, длина | ошибка |
-| кулер ↔ процессор | сокет; рассеиваемая мощность | ошибка / предупреждение |
-| накопители ↔ плата | слоты M.2 и порты SATA | ошибка |
-| охлаждение есть | кулер в комплекте или отдельный | ошибка, только для законченной сборки |
-| видеовыход есть | видеокарта или встроенная графика | ошибка, только для законченной сборки |
+| socket | CPU ↔ motherboard | error |
+| memory ↔ motherboard | type, module count, maximum capacity | error |
+| memory ↔ CPU | supported memory types | error |
+| PSU wattage | power draw × 1.25; graphics card vendor recommendation | error / warning |
+| PSU connectors | 8-pin; 12VHPWR directly or via an adapter | error / warning |
+| motherboard ↔ case | form factor | error |
+| graphics card ↔ case | length | error |
+| cooler ↔ case | tower height | error |
+| PSU ↔ case | form factor, length | error |
+| cooler ↔ CPU | socket; heat dissipation | error / warning |
+| storage ↔ motherboard | M.2 slots and SATA ports | error |
+| cooling present | bundled or separate cooler | error, complete builds only |
+| video output present | graphics card or integrated graphics | error, complete builds only |
 
-**Ошибка** — так не соберётся или не заработает. **Предупреждение** — соберётся, но с риском или потерей. Если нужного значения нет в данных (`None` — «неизвестно», в отличие от `0` — «известно, что нет»), правило молчит.
+**Error** — it won't assemble or won't work. **Warning** — it will assemble, but with a risk or a trade-off. If a required value is missing from the data (`None` means "unknown", as opposed to `0` meaning "known to be absent"), the rule stays silent.
 
-## Данные и ограничения
+## Data and limitations
 
-Проект пока работает на одном источнике и справочниках. Важно понимать, где результату можно доверять, а где нет.
+The project currently runs on a single source plus reference data. It's important to know where the results can be trusted and where they can't.
 
-**Источник — [docyx/pc-part-dataset](https://github.com/docyx/pc-part-dataset)** (MIT), снимок PCPartPicker. Цены — **американские, в долларах**, на момент снимка; у снятых с продажи товаров цены нет, и в подборе они не участвуют.
+**Source — [docyx/pc-part-dataset](https://github.com/docyx/pc-part-dataset)** (MIT), a PCPartPicker snapshot. Prices are **US prices in dollars** as of the snapshot; discontinued products have no price and are excluded from builds.
 
-**Охват** — только платформы, где сокет надёжно определяет совместимость:
+**Coverage** — only platforms where the socket reliably determines compatibility:
 
-| | Входит | Не входит |
+| | Included | Not included |
 |---|---|---|
-| Процессоры | AM5 (Zen 4/5), AM4 (Zen 2/3), LGA1700, LGA1851 | Zen/Zen+, Intel до 12-го поколения, Threadripper, EPYC, Xeon |
-| Платы | AM5, AM4 500-й серии, LGA1700, LGA1851 | AM4 300/400-й серии, старые сокеты |
-| Видеокарты | RTX 30/40/50, RX 6000/7000/9000, Intel Arc | старшие поколения, профессиональные |
-| Память | DDR2–DDR5 | DDR1 |
+| CPUs | AM5 (Zen 4/5), AM4 (Zen 2/3), LGA1700, LGA1851 | Zen/Zen+, Intel before 12th gen, Threadripper, EPYC, Xeon |
+| Motherboards | AM5, AM4 500 series, LGA1700, LGA1851 | AM4 300/400 series, older sockets |
+| Graphics cards | RTX 30/40/50, RX 6000/7000/9000, Intel Arc | older generations, professional cards |
+| Memory | DDR2–DDR5 | DDR1 |
 
-**Приблизительные данные**, которые стоит сверить с первоисточниками:
+**Approximate data** worth checking against primary sources:
 
-- `GPU_TDP_W` в `sources/docyx.py` — эталонные мощности видеокарт;
-- `GPU_PERFORMANCE`, `ARCHITECTURE_IPC` в `recommender/scores.py` — оценки производительности;
-- `data/seeds/*.json` — лимиты корпусов и параметры кулеров (у каждой записи `"verified": false`).
+- `GPU_TDP_W` in `sources/docyx.py` — reference graphics card power ratings;
+- `GPU_PERFORMANCE`, `ARCHITECTURE_IPC` in `recommender/scores.py` — performance scores;
+- `data/seeds/*.json` — case limits and cooler specs (every entry has `"verified": false`).
 
-**Чего в данных нет** — соответствующие проверки пропускаются:
+**Missing from the data** — the corresponding checks are skipped:
 
-- число слотов M.2 и портов SATA у плат;
-- разъёмы питания у видеокарт и у большинства блоков питания;
-- поддержка радиаторов водяного охлаждения корпусом.
+- number of M.2 slots and SATA ports on motherboards;
+- power connectors on graphics cards and most power supplies;
+- case support for liquid cooling radiators.
 
-**Эвристика:** платы LGA1700 на чипсетах 700-й серии без пометки DDR4 в названии считаются DDR5. Платы 600-й серии без пометки отклоняются — там соглашение производителей не соблюдается.
+**Heuristic:** LGA1700 motherboards with 700-series chipsets and no DDR4 marker in the name are assumed to be DDR5. 600-series boards without a marker are rejected — manufacturers don't follow the naming convention there.
 
-## Разработка
+## Development
 
 ```bash
 pip install -e ".[dev]"
 pre-commit install
 ```
 
-`pre-commit install` ставит два хука:
+`pre-commit install` sets up two hooks:
 
-- **pre-commit** — `ruff check --fix`, `ruff format`, `pytest` (запускается из `.venv` проекта, активировать окружение не нужно);
-- **commit-msg** — формат сообщения: `<emoji> <type>(<scope>): <subject>`, тип необязателен.
+- **pre-commit** — `ruff check --fix`, `ruff format`, `pytest` (runs from the project's `.venv`, no need to activate the environment);
+- **commit-msg** — message format: `<emoji> <type>(<scope>): <subject>`, the type is optional.
 
 ```
 ✨ feat(solver): add budget search
 🐛 (api): return 404 for unknown build
 ```
 
-Проверить всё вручную: `pre-commit run --all-files`. В CI (GitHub Actions) на каждый push и pull request выполняются те же `ruff check`, `ruff format --check` и `pytest`.
+Run everything manually: `pre-commit run --all-files`. CI (GitHub Actions) runs the same `ruff check`, `ruff format --check` and `pytest` on every push and pull request.
 
-### Принципы
+### Principles
 
-- **Единицы в именах полей:** `length_mm`, `tdp_w`, `capacity_gb`, `speed_mhz`.
-- **`None` — «неизвестно», `0` / `False` — «известно, что нет».** Для чисел — `is not None`, а не проверка на истинность.
-- **Тесты на границах:** для каждого лимита — пара «ровно на границе» / «на единицу больше».
-- **Чужие данные — пропустить и посчитать, свои — упасть громко.** Загрузчик датасета отклоняет кривые записи с причиной, загрузчик справочников падает на первой ошибке.
-- **Сначала разведка, потом загрузчик:** `scripts/explore_docyx.py` показывает реальные значения полей до того, как под них пишется код.
+- **Units in field names:** `length_mm`, `tdp_w`, `capacity_gb`, `speed_mhz`.
+- **`None` means "unknown", `0` / `False` means "known to be absent".** For numbers, use `is not None`, not a truthiness check.
+- **Boundary tests:** for every limit, a pair of "exactly at the limit" / "one over".
+- **Third-party data: skip and count; our own data: fail loudly.** The dataset loader rejects malformed records with a reason; the reference data loader fails on the first error.
+- **Explore first, then write the loader:** `scripts/explore_docyx.py` shows the real field values before any code is written for them.
 
-### Как добавить категорию из датасета
+### Adding a category from the dataset
 
-1. Разведка: добавь категорию в `CATEGORIES` в `scripts/explore_docyx.py` без `parse` и посмотри на значения полей.
-2. Загрузчик: функция `parse_*` в `sources/docyx.py` и тесты на реальных записях в `tests/test_docyx.py`.
-3. Подключение: `parse` и ожидаемые причины отказа в `CATEGORIES`; убедись, что неожиданных отказов ноль.
-4. Каталог: добавь файл в `DOCYX_FILES` в `catalog.py`.
+1. Explore: add the category to `CATEGORIES` in `scripts/explore_docyx.py` without `parse` and look at the field values.
+2. Loader: a `parse_*` function in `sources/docyx.py` and tests on real records in `tests/test_docyx.py`.
+3. Wire it up: `parse` and the expected rejection reasons in `CATEGORIES`; make sure there are zero unexpected rejections.
+4. Catalog: add the file to `DOCYX_FILES` in `catalog.py`.
 
-## Статус
+## Status
 
-- [x] Модели и правила совместимости
-- [x] Загрузка датасета: память, процессоры, платы, БП, видеокарты, накопители
-- [x] Справочники корпусов и кулеров
-- [x] Цены и каталог
-- [x] Солвер: достройка сборки, требования к качеству
-- [x] Подбор под бюджет с оценкой производительности
-- [ ] API и веб-интерфейс
-- [ ] Сверка справочников и оценок с первоисточниками
-- [ ] Цены из европейских магазинов (Geizhals), евро
-- [ ] Хранение в базе данных, регулярное обновление цен
+- [x] Models and compatibility rules
+- [x] Dataset loading: memory, CPUs, motherboards, PSUs, graphics cards, storage
+- [x] Case and cooler reference data
+- [x] Prices and catalog
+- [x] Solver: build completion, quality requirements
+- [x] Budget builds with performance scores
+- [ ] API and web interface
+- [ ] Verify reference data and scores against primary sources
+- [ ] Prices from European stores (Geizhals), in euros
+- [ ] Database storage, regular price updates

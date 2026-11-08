@@ -1,17 +1,17 @@
-"""Разведка датасета docyx и проверка загрузчиков.
+"""Explore the docyx dataset and check the loaders.
 
-Для каждой категории два шага:
-  1. Сырые записи: сколько всего, сколько без важных полей, какие значения встречаются.
-     Работает всегда — даже для категорий, у которых ещё нет загрузчика.
-  2. Загрузчик (если он уже написан): сколько загрузилось, сколько отказов,
-     и есть ли среди отказов неожиданные — то есть не из списка осознанных причин.
+Two steps per category:
+  1. Raw records: how many in total, how many lack important fields, which values occur.
+     Always works — even for categories that don't have a loader yet.
+  2. Loader (if already written): how many loaded, how many rejected,
+     and whether any rejections are unexpected — i.e. not on the list of known reasons.
 
-Запуск из корня проекта:
-    python scripts/explore_docyx.py                    # все категории
-    python scripts/explore_docyx.py video-card         # одна категория
-    python scripts/explore_docyx.py cpu memory         # несколько
+Run from the project root:
+    python scripts/explore_docyx.py                    # all categories
+    python scripts/explore_docyx.py video-card         # one category
+    python scripts/explore_docyx.py cpu memory         # several
 
-Путь к датасету — переменная окружения DOCYX_PATH или ~/projects/pc-part-dataset.
+Dataset path: the DOCYX_PATH environment variable or ~/projects/pc-part-dataset.
 """
 
 import os
@@ -35,11 +35,11 @@ from pcbuilder.sources.docyx import (
 
 
 class Category(BaseModel):
-    parse: Callable | None = None  # None — загрузчика пока нет
-    expected_reasons: tuple[str, ...] = ()  # осознанные причины отказа
-    count_fields: tuple[str, ...] = ()  # поля, значения которых посчитать
-    required_fields: tuple[str, ...] = ()  # поля, отсутствие которых важно увидеть
-    top: int = 15  # сколько самых частых значений показывать
+    parse: Callable | None = None  # None — no loader yet
+    expected_reasons: tuple[str, ...] = ()  # known, accepted rejection reasons
+    count_fields: tuple[str, ...] = ()  # fields whose values to count
+    required_fields: tuple[str, ...] = ()  # fields whose absence is worth seeing
+    top: int = 15  # how many of the most common values to show
 
 
 CATEGORIES: dict[str, Category] = {
@@ -98,14 +98,14 @@ CATEGORIES: dict[str, Category] = {
 
 
 def explore_raw(records: list[dict], category: Category) -> None:
-    print(f"  записей: {len(records)}")
+    print(f"  records: {len(records)}")
     for name in category.required_fields:
         missing = sum(1 for r in records if r.get(name) is None)
-        print(f"  без поля «{name}»: {missing}")
+        print(f"  missing '{name}': {missing}")
 
     for name in category.count_fields:
         counts = Counter(r.get(name) for r in records)
-        print(f"\n  «{name}» — {len(counts)} разных значений, самые частые:")
+        print(f"\n  '{name}' — {len(counts)} distinct values, most common:")
         for value, count in counts.most_common(category.top):
             print(f"    {count:6}  {value!r}")
 
@@ -120,9 +120,9 @@ def explore_loader(path: Path, records: list[dict], category: Category) -> None:
     repeats = len(records) - len(parts) - len(errors)
 
     print(
-        f"\n  загрузчик: загружено {len(parts)}, отказов {len(errors)}, повторов {repeats}"
+        f"\n  loader: loaded {len(parts)}, rejected {len(errors)}, duplicates {repeats}"
     )
-    print(f"  неожиданных отказов: {len(unexpected)}")
+    print(f"  unexpected rejections: {len(unexpected)}")
     for e in unexpected[:10]:
         print(f"    {e}")
 
@@ -135,13 +135,13 @@ def main() -> None:
 
     unknown = [name for name in requested if name not in CATEGORIES]
     if unknown:
-        sys.exit(f"Неизвестные категории: {unknown}. Есть: {list(CATEGORIES)}")
+        sys.exit(f"Unknown categories: {unknown}. Available: {list(CATEGORIES)}")
 
     for name in requested:
         category = CATEGORIES[name]
         path = dataset / "data" / "jsonl" / f"{name}.jsonl"
         if not path.exists():
-            print(f"=== {name}: файл не найден — {path}\n")
+            print(f"=== {name}: file not found — {path}\n")
             continue
 
         records = list(read_jsonl(path))
@@ -150,7 +150,7 @@ def main() -> None:
         if category.parse is not None:
             explore_loader(path, records, category)
         else:
-            print("\n  загрузчика пока нет")
+            print("\n  no loader yet")
         print()
 
 

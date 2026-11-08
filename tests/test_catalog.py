@@ -40,7 +40,7 @@ def test_candidates_sorted_by_price():
 def test_parts_without_price_are_not_candidates():
     catalog = Catalog(PARTS, OFFERS)
     assert "c-noprice" not in [p.id for p in catalog.candidates(ComponentType.COOLING)]
-    # но сама деталь в каталоге есть — её можно найти по id
+    # but the part itself is in the catalog and can be found by id
     assert catalog.get("c-noprice").model == "No Price"
 
 

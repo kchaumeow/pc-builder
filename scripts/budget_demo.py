@@ -1,9 +1,9 @@
-"""Подбор под бюджет на настоящих данных.
+"""Budget build on real data.
 
-Запуск из корня проекта:
-    python scripts/budget_demo.py            # несколько бюджетов
-    python scripts/budget_demo.py 1500       # один бюджет
-    python scripts/budget_demo.py 1500 --work   # профиль «работа»
+Run from the project root:
+    python scripts/budget_demo.py            # several budgets
+    python scripts/budget_demo.py 1500       # one budget
+    python scripts/budget_demo.py 1500 --work   # "workstation" profile
 """
 
 import os
@@ -33,40 +33,40 @@ budgets = [Decimal(a) for a in args if a != "--work"] or [
 
 catalog = load_catalog(DATASET)
 requirements = Requirements(min_ram_gb=32, min_storage_gb=1000)
-print(f"Профиль: {profile.name}. Требования: {requirements.describe()}\n")
+print(f"Profile: {profile.name}. Requirements: {requirements.describe()}\n")
 
 for budget in budgets:
     started = time.perf_counter()
     result = best_build(catalog, budget, profile, requirements)
     elapsed = time.perf_counter() - started
 
-    print(f"=== Бюджет {budget} {catalog.currency}")
+    print(f"=== Budget {budget} {catalog.currency}")
     if result is None:
-        print("  ничего не нашлось\n")
+        print("  nothing found\n")
         continue
 
     build = result.solution.build
     rows: list[tuple[str, Component | None]] = [
         ("CPU", build.cpu),
-        ("Видеокарта", build.gpu),
-        ("Плата", build.motherboard),
-        ("Память", build.ram),
-        ("Диск", build.storage[0]),
-        ("БП", build.psu),
-        ("Корпус", build.case),
-        ("Кулер", build.cooling),
+        ("Graphics card", build.gpu),
+        ("Motherboard", build.motherboard),
+        ("Memory", build.ram),
+        ("Storage", build.storage[0]),
+        ("Power supply", build.psu),
+        ("Case", build.case),
+        ("CPU cooler", build.cooling),
     ]
     for label, part in rows:
         if part is None:
             continue
         extra = ""
         if part is build.cpu:
-            extra = f"игры {cpu_gaming_index(build.cpu)}, работа {cpu_multicore_index(build.cpu)}"
+            extra = f"gaming {cpu_gaming_index(build.cpu)}, workstation {cpu_multicore_index(build.cpu)}"
         elif part is build.gpu:
             extra = f"{build.gpu.chipset}, {gpu_index(build.gpu)}"
-        print(f"  {label:11} {part.name:42} {extra:32} {catalog.price(part):>8}")
-    print(f"  {'Итого':87} {result.solution.total:>8}")
+        print(f"  {label:14} {part.name:42} {extra:32} {catalog.price(part):>8}")
+    print(f"  {'Total':90} {result.solution.total:>8}")
     print(
-        f"  общая оценка {result.score:.1f}; пар рассмотрено {result.pairs_considered}, "
-        f"достроено {result.pairs_solved}; {elapsed:.1f} с\n"
+        f"  overall score {result.score:.1f}; pairs considered {result.pairs_considered}, "
+        f"completed {result.pairs_solved}; {elapsed:.1f} s\n"
     )

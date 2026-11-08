@@ -15,7 +15,7 @@ from pcbuilder.recommender.scores import (
 from tests.test_compatibility import make_cpu, make_gpu
 from tests.test_solver import BASE, named, priced
 
-# Остальное из BASE стоит 150 + 100 + 80 + 90 + 70 + 30 = 520
+# The rest of BASE costs 150 + 100 + 80 + 90 + 70 + 30 = 520
 
 CPU = make_cpu(includes_cooler=False).model_copy(update={"id": "cpu"})
 FAST_GPU = named(make_gpu, "gpu-fast").model_copy(
@@ -56,21 +56,21 @@ def test_extra_cores_matter_for_work_not_for_games():
     eight = make_cpu().model_copy(update={"cores": 8, "architecture": "Zen 4"})
     sixteen = make_cpu().model_copy(update={"cores": 16, "architecture": "Zen 4"})
     assert cpu_gaming_index(sixteen) == cpu_gaming_index(eight)
-    # Вдвое больше ядер — почти вдвое выше оценка (точное «вдвое» мешает округление до десятых)
+    # Twice the cores, nearly twice the score (rounding to tenths prevents an exact "twice")
     assert cpu_multicore_index(sixteen) == pytest.approx(
         2 * cpu_multicore_index(eight), rel=0.01
     )
 
 
 def test_gaming_score_is_bottleneck():
-    gpu = FAST_GPU  # RTX 4080, индекс 72
+    gpu = FAST_GPU  # RTX 4080, index 72
     weak = make_cpu().model_copy(update={"architecture": "Zen 2", "cores": 4})
     strong = make_cpu().model_copy(
         update={"architecture": "Zen 5", "cores": 8, "boost_clock_mhz": 5500}
     )
-    # Слабый процессор ограничивает: оценка ниже индекса видеокарты
+    # A weak CPU is the bottleneck: the score is below the GPU's index
     assert GAMING.score(weak, gpu) < gpu_index(gpu)
-    # Сильный — видеокарта упирается в себя: оценка равна её индексу
+    # A strong one leaves the GPU as the limit: the score equals its index
     assert GAMING.score(strong, gpu) == gpu_index(gpu)
 
 
@@ -114,7 +114,7 @@ def test_budget_too_small():
 
 def test_skips_pairs_over_budget_without_solving():
     result = best_build(catalog(), Decimal(1100))
-    # Пара с RTX 4080 дороже бюджета уже по нижней границе — солвер для неё не запускался
+    # The RTX 4080 pair exceeds the budget on the lower bound alone — the solver never ran for it
     assert result.pairs_considered == 2
     assert result.pairs_solved == 1
 

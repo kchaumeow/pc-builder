@@ -30,10 +30,10 @@ from pcbuilder.sources.docyx import (
     to_price,
 )
 
-# Записи — реальные строки из датасета
+# Records are real rows from the dataset
 
 
-# --- Общее -------------------------------------------------------------------------
+# --- Common ------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -46,14 +46,14 @@ from pcbuilder.sources.docyx import (
         (
             "Kingston SSDNow V+",
             "kingston-ssdnow-v-plus",
-        ),  # иначе совпало бы с «SSDNow V»
+        ),  # otherwise it would collide with "SSDNow V"
     ],
 )
 def test_slugify(text, expected):
     assert slugify(text) == expected
 
 
-# --- Память ------------------------------------------------------------------------
+# --- Memory ------------------------------------------------------------------------
 
 VENGEANCE_RGB = {
     "name": "Corsair Vengeance RGB 32 GB",
@@ -75,19 +75,19 @@ def test_parse_memory():
     assert ram.memory_type == MemoryType.DDR5
     assert ram.speed_mhz == 6000
     assert ram.modules == 2
-    assert ram.capacity_gb == 32  # суммарно: 2 × 16, а не 16
+    assert ram.capacity_gb == 32  # total: 2 x 16, not 16
     assert ram.cas_latency == 36
 
 
 def test_parse_memory_four_modules():
-    # Ловит len(modules): у списка [4, 8] длина 2, а планок 4
+    # Catches len(modules): the list [4, 8] has length 2, but there are 4 modules
     ram = parse_memory({**VENGEANCE_RGB, "modules": [4, 8]})
     assert ram.modules == 4
     assert ram.capacity_gb == 32
 
 
 def test_same_name_different_speed_gets_different_id():
-    # Под одним названием продаются разные комплекты
+    # Different kits are sold under the same name
     a = parse_memory(VENGEANCE_RGB)
     b = parse_memory({**VENGEANCE_RGB, "speed": [5, 5600]})
     assert a.id != b.id
@@ -104,12 +104,12 @@ def test_parse_memory_unknown_ddr_version_is_rejected():
 
 
 def test_parse_memory_speed_without_version_is_rejected():
-    # DDR1 в датасете: speed — одно число, а не пара
+    # DDR1 in the dataset: speed is a single number, not a pair
     with pytest.raises(ValueError):
         parse_memory({**VENGEANCE_RGB, "speed": 400})
 
 
-# --- Процессоры --------------------------------------------------------------------
+# --- CPUs --------------------------------------------------------------------------
 
 RYZEN_9800X3D = {
     "name": "AMD Ryzen 7 9800X3D",
@@ -142,7 +142,7 @@ def test_parse_cpu():
 
 
 def test_parse_cpu_without_graphics_field():
-    # F-серия: поля graphics нет вовсе
+    # F series: no graphics field at all
     record = {k: v for k, v in RYZEN_9800X3D.items() if k != "graphics"}
     assert parse_cpu(record).integrated_graphics is False
 
@@ -162,7 +162,7 @@ def test_parse_cpu_lga1700_supports_both_memory_types():
 @pytest.mark.parametrize(
     "name",
     [
-        "AMD Threadripper 3990X",  # в датасете без слова Ryzen
+        "AMD Threadripper 3990X",  # no "Ryzen" in the dataset name
         "AMD Ryzen Threadripper 7980X",
         "AMD EPYC 4564P",
     ],
@@ -177,7 +177,7 @@ def test_parse_cpu_rejects_unknown_architecture():
         parse_cpu({**RYZEN_9800X3D, "microarchitecture": "Haswell"})
 
 
-# --- Материнские платы -------------------------------------------------------------
+# --- Motherboards ------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -203,9 +203,19 @@ def test_extract_chipset(name, expected):
 @pytest.mark.parametrize(
     "name, socket, chipset, expected",
     [
-        ("Asus PRIME B650-PLUS WIFI", "AM5", "B650", MemoryType.DDR5),  # по сокету
-        ("Asus PRIME B550M-A WIFI II", "AM4", "B550", MemoryType.DDR4),  # по сокету
-        ("MSI PRO B760M-P DDR4", "LGA1700", "B760", MemoryType.DDR4),  # из названия
+        (
+            "Asus PRIME B650-PLUS WIFI",
+            "AM5",
+            "B650",
+            MemoryType.DDR5,
+        ),  # from the socket
+        (
+            "Asus PRIME B550M-A WIFI II",
+            "AM4",
+            "B550",
+            MemoryType.DDR4,
+        ),  # from the socket
+        ("MSI PRO B760M-P DDR4", "LGA1700", "B760", MemoryType.DDR4),  # from the name
         ("ASRock B760 Pro RS/D4", "LGA1700", "B760", MemoryType.DDR4),  # ASRock: /D4
         (
             "Asus PRIME H610I-PLUS D4-CSM",
@@ -224,7 +234,7 @@ def test_extract_chipset(name, expected):
             "LGA1700",
             "Z790",
             MemoryType.DDR5,
-        ),  # 700-я серия без пометки
+        ),  # unmarked 700 series
     ],
 )
 def test_detect_memory_type(name, socket, chipset, expected):
@@ -238,9 +248,9 @@ def test_detect_memory_type(name, socket, chipset, expected):
             "MSI MEG Z690I UNIFY",
             "LGA1700",
             "Z690",
-        ),  # 600-я серия без пометки — неоднозначно
-        ("Biostar H610MH", "LGA1700", "H610"),  # то же
-        ("Weird B650 Board DDR4", "AM5", "B650"),  # противоречие названия и сокета
+        ),  # unmarked 600 series, ambiguous
+        ("Biostar H610MH", "LGA1700", "H610"),  # same
+        ("Weird B650 Board DDR4", "AM5", "B650"),  # name contradicts socket
     ],
 )
 def test_detect_memory_type_rejects(name, socket, chipset):
@@ -263,21 +273,21 @@ def test_parse_motherboard():
     mb = parse_motherboard(PRIME_B550M)
     assert mb.id == "mb-asus-prime-b550m-a-wifi-ii"
     assert mb.socket == "AM4"
-    assert mb.chipset == "B550"  # без M
-    assert mb.form_factor == MotherBoardFormFactor.MICRO_ATX  # из "Micro ATX"
-    assert mb.memory_type == MemoryType.DDR4  # по сокету
+    assert mb.chipset == "B550"  # without the M
+    assert mb.form_factor == MotherBoardFormFactor.MICRO_ATX  # from "Micro ATX"
+    assert mb.memory_type == MemoryType.DDR4  # from the socket
     assert mb.max_memory_gb == 128
     assert mb.memory_slots == 4
-    assert mb.m2_slots is None  # неизвестно, а не 0
+    assert mb.m2_slots is None  # unknown, not 0
     assert mb.sata_ports is None
 
 
 @pytest.mark.parametrize(
     "override",
     [
-        {"socket": "LGA1151"},  # старый сокет
-        {"form_factor": "SSI EEB"},  # серверный форм-фактор
-        {"name": "Asus PRIME B450M-A II"},  # 400-я серия AM4 — вне охвата
+        {"socket": "LGA1151"},  # old socket
+        {"form_factor": "SSI EEB"},  # server form factor
+        {"name": "Asus PRIME B450M-A II"},  # AM4 400 series, out of scope
     ],
 )
 def test_parse_motherboard_rejects(override):
@@ -285,7 +295,7 @@ def test_parse_motherboard_rejects(override):
         parse_motherboard({**PRIME_B550M, **override})
 
 
-# --- Блоки питания -----------------------------------------------------------------
+# --- Power supplies ----------------------------------------------------------------
 
 MAG_A750GL = {
     "name": "MSI MAG A750GL PCIE5",
@@ -305,14 +315,14 @@ def test_parse_power_supply():
     assert psu.form_factor == PsuFormFactor.ATX
     assert psu.efficiency == PsuEfficiency.GOLD
     assert psu.modularity == PsuModularity.FULL
-    assert psu.has_12vhpwr is True  # из «PCIE5»
-    assert psu.pcie_8pin is None  # неизвестно, а не 0
+    assert psu.has_12vhpwr is True  # from "PCIE5"
+    assert psu.pcie_8pin is None  # unknown, not 0
 
 
 def test_parse_power_supply_non_modular_without_marker():
     psu = parse_power_supply({**MAG_A750GL, "name": "MSI MAG A650BN", "modular": False})
-    assert psu.modularity == PsuModularity.NONE  # False из JSON → NONE
-    assert psu.has_12vhpwr is None  # нет пометки — неизвестно, не False
+    assert psu.modularity == PsuModularity.NONE  # False from JSON -> NONE
+    assert psu.has_12vhpwr is None  # no marker means unknown, not False
 
 
 def test_parse_power_supply_without_efficiency():
@@ -328,7 +338,7 @@ def test_parse_power_supply_detects_sfx_l():
 
 
 def test_same_psu_name_different_wattage_gets_different_id():
-    # В датасете «Thermaltake Smart» — это блоки на 430, 500, 600, 650, 700 Вт
+    # In the dataset "Thermaltake Smart" covers 430, 500, 600, 650 and 700 W units
     smart = {
         "name": "Thermaltake Smart",
         "type": "ATX",
@@ -362,13 +372,13 @@ def test_parse_gpu():
     gpu = parse_gpu(SAPPHIRE_PULSE)
     assert gpu.chipset == "Radeon RX 9070 XT"
     assert gpu.vram_gb == 16
-    assert gpu.tdp_w == 304  # из справочника
+    assert gpu.tdp_w == 304  # from the lookup table
     assert gpu.length_mm == 320
-    assert gpu.power_connectors is None  # неизвестно, а не []
+    assert gpu.power_connectors is None  # unknown, not []
 
 
 def test_same_gpu_name_different_chipset_gets_different_id():
-    # «Sapphire PULSE» в датасете — и RX 9060 XT, и RX 9070 XT
+    # In the dataset "Sapphire PULSE" is both an RX 9060 XT and an RX 9070 XT
     a = parse_gpu(SAPPHIRE_PULSE)
     b = parse_gpu({**SAPPHIRE_PULSE, "chipset": "Radeon RX 9060 XT", "length": 240})
     assert a.id != b.id
@@ -382,9 +392,9 @@ def test_parse_gpu_strips_lhr():
 @pytest.mark.parametrize(
     "override",
     [
-        {"chipset": "GeForce GTX 1080"},  # вне охвата
-        {"chipset": "Quadro RTX 4000"},  # профессиональная
-        {"length": None},  # без длины не проверить корпус
+        {"chipset": "GeForce GTX 1080"},  # out of scope
+        {"chipset": "Quadro RTX 4000"},  # professional card
+        {"length": None},  # without a length the case cannot be checked
     ],
 )
 def test_parse_gpu_rejects(override):
@@ -415,7 +425,7 @@ def test_parse_storage_nvme_ssd():
 
 
 def test_parse_storage_hdd():
-    # У жёстких дисков в type — число оборотов, а 3.5 — число, не строка
+    # Hard drives have an RPM number in type, and 3.5 is a number, not a string
     drive = parse_storage(
         {
             **SAMSUNG_990_PRO,
@@ -431,7 +441,7 @@ def test_parse_storage_hdd():
 
 
 def test_parse_storage_m2_sata():
-    # M.2 по форме, но SATA по интерфейсу — займёт M.2-слот
+    # M.2 form factor but SATA interface: it takes an M.2 slot
     drive = parse_storage({**SAMSUNG_990_PRO, "interface": "M.2 SATA"})
     assert drive.form_factor == StorageFormFactor.M2
     assert drive.interface == StorageInterface.SATA
@@ -444,7 +454,7 @@ def test_same_drive_name_different_capacity_gets_different_id():
 
 
 def test_same_name_hdd_and_ssd_get_different_id():
-    # «Western Digital Blue 1 ТБ 2.5"» в датасете — и жёсткий диск, и SSD
+    # In the dataset "Western Digital Blue 1 TB 2.5"" is both a hard drive and an SSD
     wd_blue = {
         **SAMSUNG_990_PRO,
         "name": "Western Digital Blue",
@@ -464,10 +474,10 @@ def test_same_name_hdd_and_ssd_get_different_id():
         {
             "form_factor": "mSATA",
             "interface": "mSATA",
-        },  # mSATA — не SATA, хоть и содержит «SATA»
-        {"form_factor": "PCIe", "interface": "PCIe x4"},  # SSD-плата расширения
-        {"form_factor": 2.5, "interface": "SAS 12.0 Gb/s"},  # серверный SAS
-        {"type": None},  # тип неизвестен
+        },  # mSATA is not SATA, even though it contains "SATA"
+        {"form_factor": "PCIe", "interface": "PCIe x4"},  # SSD expansion card
+        {"form_factor": 2.5, "interface": "SAS 12.0 Gb/s"},  # server SAS
+        {"type": None},  # unknown type
     ],
 )
 def test_parse_storage_rejects(override):
@@ -475,7 +485,7 @@ def test_parse_storage_rejects(override):
         parse_storage({**SAMSUNG_990_PRO, **override})
 
 
-# --- Цены --------------------------------------------------------------------------
+# --- Prices ------------------------------------------------------------------------
 
 
 def write_jsonl(path, records):
@@ -507,12 +517,12 @@ def test_load_offers_skips_missing_price_and_rejected(tmp_path):
     path = write_jsonl(
         tmp_path / "ssd.jsonl",
         [
-            {**SAMSUNG_990_PRO, "price": None},  # нет цены
+            {**SAMSUNG_990_PRO, "price": None},  # no price
             {
                 **SAMSUNG_990_PRO,
                 "interface": "mSATA",
                 "price": 10.0,
-            },  # деталь не загружается
+            },  # part is not loaded
         ],
     )
     assert load_offers(path, parse_storage) == {}

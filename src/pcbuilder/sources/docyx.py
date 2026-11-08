@@ -1,8 +1,8 @@
-"""Загрузчик датасета docyx/pc-part-dataset (снимок PCPartPicker, формат JSON Lines).
+"""Loader for the docyx/pc-part-dataset dataset (a PCPartPicker snapshot in JSON Lines).
 
-Каждая функция parse_* превращает одну запись датасета в нашу модель.
-Если запись нельзя разобрать надёжно — ValueError с понятной причиной:
-лучше не загрузить деталь, чем загрузить с неправильными данными.
+Each parse_* function turns one dataset record into our model.
+If a record cannot be parsed reliably, it raises ValueError with a clear reason:
+better to skip a part than to load it with wrong data.
 """
 
 import json
@@ -30,11 +30,11 @@ from pcbuilder.domain.models import (
     StorageMedia,
 )
 
-# --- Общее -------------------------------------------------------------------------
+# --- Common ------------------------------------------------------------------------
 
 
 def read_jsonl(path: Path) -> Iterator[dict]:
-    """Читает JSONL построчно: одна строка — одна запись."""
+    """Read JSONL line by line: one line is one record."""
     with path.open(encoding="utf-8") as file:
         for line in file:
             line = line.strip()
@@ -46,10 +46,10 @@ def load_parts[T: Component](
     path: Path,
     parse: Callable[[dict], T],
 ) -> tuple[dict[str, T], list[str]]:
-    """Загружает файл целиком. Возвращает (детали по id, список отказов с причинами).
+    """Load a whole file. Returns (parts by id, list of rejections with reasons).
 
-    Ловим только KeyError (нет обязательного поля) и ValueError (наш осознанный отказ
-    или ошибка валидации pydantic). Всё остальное — баг в коде, пусть падает громко.
+    Only KeyError (missing required field) and ValueError (our deliberate rejection
+    or a pydantic validation error) are caught. Anything else is a bug; let it fail loudly.
     """
     parts: dict[str, T] = {}
     errors: list[str] = []
@@ -78,20 +78,20 @@ def slugify(text: str) -> str:
 
 
 def split_brand(name: str) -> tuple[str, str]:
-    """Первое слово — бренд, остальное — модель. Для брендов из нескольких слов не подходит."""
+    """First word is the brand, the rest is the model. Does not work for multi-word brands."""
     words = name.split(" ")
     return words[0], " ".join(words[1:])
 
 
 def require_pair(record: dict, field: str) -> tuple[int, int]:
-    """Поле-пара вида [5, 6000]. Иначе — ValueError, а не TypeError при распаковке."""
+    """A pair field like [5, 6000]. Otherwise ValueError rather than TypeError on unpacking."""
     value = record[field]
     if not isinstance(value, list) or len(value) != 2:
         raise ValueError(f"Unexpected {field} format {value!r} in {record['name']}")
     return value[0], value[1]
 
 
-# --- Память ------------------------------------------------------------------------
+# --- Memory ------------------------------------------------------------------------
 
 DDR_VERSIONS = {
     2: MemoryType.DDR2,
@@ -104,8 +104,8 @@ DDR_VERSIONS = {
 def memory_id(
     record: dict, ddr_version: int, speed_mhz: int, module_count: int, module_gb: int
 ) -> str:
-    # Название в датасете — серия и объём, а не товар: под одним именем много комплектов.
-    # Поэтому идентичность собираем из характеристик.
+    # The dataset name is a series and capacity, not a product: many kits share one name.
+    # So the identity is built from the specs.
     parts = [
         record["name"],
         f"ddr{ddr_version}",
@@ -134,16 +134,16 @@ def parse_memory(record: dict) -> RamKit:
         memory_type=memory_type,
         speed_mhz=speed_mhz,
         modules=module_count,
-        capacity_gb=module_count * module_gb,  # в датасете объём одной планки
+        capacity_gb=module_count * module_gb,  # the dataset gives per-module capacity
         cas_latency=record.get("cas_latency"),
     )
 
 
-# --- Процессоры --------------------------------------------------------------------
+# --- CPUs --------------------------------------------------------------------------
 
-# Микроархитектура → (сокет, типы памяти). В датасете сокета нет — выводим.
-# Охват: только платформы, где сокет надёжно определяет совместимость.
-# Zen/Zen+ не включены: платы B550 их официально не поддерживают.
+# Microarchitecture -> (socket, memory types). The dataset has no socket, so we infer it.
+# Scope: only platforms where the socket reliably determines compatibility.
+# Zen/Zen+ are excluded: B550 boards do not officially support them.
 CPU_ARCHITECTURES = {
     "Zen 5": ("AM5", [MemoryType.DDR5]),
     "Zen 4": ("AM5", [MemoryType.DDR5]),
@@ -155,14 +155,14 @@ CPU_ARCHITECTURES = {
     "Alder Lake": ("LGA1700", [MemoryType.DDR4, MemoryType.DDR5]),
 }
 
-# Та же архитектура, но другой сокет — справочник дал бы неверный ответ.
+# Same architecture but a different socket: the lookup table would give a wrong answer.
 EXCLUDED_LINES = ("Threadripper", "EPYC", "Xeon")
 
 
 def ghz_to_mhz(value: float | None) -> int | None:
     if value is None:
         return None
-    return round(value * 1000)  # round, а не int: 4.7 * 1000 может быть 4699.999...
+    return round(value * 1000)  # round, not int: 4.7 * 1000 can be 4699.999...
 
 
 def parse_cpu(record: dict) -> CPU:
@@ -189,11 +189,11 @@ def parse_cpu(record: dict) -> CPU:
         base_clock_mhz=ghz_to_mhz(record.get("core_clock")),
         boost_clock_mhz=ghz_to_mhz(record.get("boost_clock")),
         integrated_graphics=record.get("graphics") is not None,
-        includes_cooler=False,  # в датасете нет; False безопаснее — попросит кулер
+        includes_cooler=False,  # not in the dataset; False is safer, it asks for a cooler
     )
 
 
-# --- Материнские платы -------------------------------------------------------------
+# --- Motherboards ------------------------------------------------------------------
 
 SUPPORTED_SOCKETS = {"AM5", "AM4", "LGA1700", "LGA1851"}
 
@@ -201,7 +201,7 @@ FORM_FACTORS = {
     "ATX": MotherBoardFormFactor.ATX,
     "Micro ATX": MotherBoardFormFactor.MICRO_ATX,
     "Mini ITX": MotherBoardFormFactor.MINI_ITX,
-    "Thin Mini ITX": MotherBoardFormFactor.MINI_ITX,  # тот же размер 170×170, низкий профиль
+    "Thin Mini ITX": MotherBoardFormFactor.MINI_ITX,  # same 170x170 size, low profile
     "EATX": MotherBoardFormFactor.E_ATX,
 }
 
@@ -217,7 +217,7 @@ KNOWN_CHIPSETS = {
     "X870E",  # AM5
     "A520",
     "B550",
-    "X570",  # AM4, 500-я серия
+    "X570",  # AM4, 500 series
     "H610",
     "B660",
     "H670",
@@ -230,22 +230,22 @@ KNOWN_CHIPSETS = {
     "Z890",  # LGA1851
 }
 
-# Сокеты с единственным типом памяти. LGA1700 нет намеренно: там бывают и DDR4, и DDR5.
+# Sockets with a single memory type. LGA1700 is left out on purpose: it has both DDR4 and DDR5.
 SOCKET_MEMORY_TYPES = {
     "AM5": MemoryType.DDR5,
     "AM4": MemoryType.DDR4,
     "LGA1851": MemoryType.DDR5,
 }
 
-# LGA1700, 700-я серия: DDR5 — основная версия, DDR4-варианты помечены в названии.
-# У 600-й серии этого соглашения нет (бывают DDR4-платы без пометки) — не включаем.
+# LGA1700, 700 series: DDR5 is the main version, DDR4 variants are marked in the name.
+# The 600 series has no such convention (some DDR4 boards are unmarked), so it is excluded.
 LGA1700_UNMARKED_DDR5_CHIPSETS = {"B760", "Z790", "H770"}
 
-# Буква + 3 цифры + необязательная E. Справа может идти что угодно, кроме цифры
-# (B550M, B760I, Z790ITX, B660GTA). Регулярка ищет кандидатов, KNOWN_CHIPSETS решает.
+# A letter + 3 digits + an optional E. Anything but a digit may follow
+# (B550M, B760I, Z790ITX, B660GTA). The regex finds candidates, KNOWN_CHIPSETS decides.
 CHIPSET_PATTERN = re.compile(r"(?<![A-Z0-9])([ABHQWXZ]\d{3}E?)(?!\d)")
 
-# «DDR4», «D4» (ASUS), «/D5» (ASRock)
+# "DDR4", "D4" (ASUS), "/D5" (ASRock)
 NAME_MEMORY_PATTERN = re.compile(r"(?<![A-Z0-9])D(?:DR)?([45])(?![A-Z0-9])")
 NAME_MEMORY_TYPES = {"4": MemoryType.DDR4, "5": MemoryType.DDR5}
 
@@ -306,13 +306,13 @@ def parse_motherboard(record: dict) -> Motherboard:
         memory_type=detect_memory_type(name, socket, chipset),
         memory_slots=record["memory_slots"],
         max_memory_gb=record["max_memory"],
-        # m2_slots и sata_ports в датасете нет — остаются None («неизвестно»)
+        # m2_slots and sata_ports are not in the dataset and stay None ("unknown")
     )
 
 
-# --- Блоки питания -----------------------------------------------------------------
+# --- Power supplies ----------------------------------------------------------------
 
-# TFX, Flex ATX, пико-БП не загружаем: корпуса пока не умеют их принимать.
+# TFX, Flex ATX and pico PSUs are not loaded: cases cannot accept them yet.
 PSU_FORM_FACTORS = {
     "ATX": PsuFormFactor.ATX,
     "SFX": PsuFormFactor.SFX,
@@ -327,7 +327,7 @@ EFFICIENCY = {
     "titanium": PsuEfficiency.TITANIUM,
 }
 
-# В датасете в одном поле и строки, и булево: "Full", "Semi", false
+# The dataset mixes strings and booleans in one field: "Full", "Semi", false
 MODULARITY = {
     "Full": PsuModularity.FULL,
     "Full / Side": PsuModularity.FULL,
@@ -335,7 +335,7 @@ MODULARITY = {
     False: PsuModularity.NONE,
 }
 
-# Блоки ATX 3.x всегда с родным 12VHPWR (12V-2x6)
+# ATX 3.x power supplies always have a native 12VHPWR (12V-2x6)
 NATIVE_12VHPWR_MARKERS = ("PCIE5", "ATX 3")
 
 
@@ -344,7 +344,7 @@ def detect_psu_form_factor(record: dict) -> PsuFormFactor:
     if raw is None or raw not in PSU_FORM_FACTORS:
         raise ValueError(f"Unsupported PSU form factor {raw!r}: {record['name']}")
     form_factor = PSU_FORM_FACTORS[raw]
-    # SFX-L в датасете записан как SFX — различаем по названию
+    # The dataset records SFX-L as SFX, so tell them apart by name
     if form_factor == PsuFormFactor.SFX and "SFX-L" in record["name"].upper():
         return PsuFormFactor.SFX_L
     return form_factor
@@ -353,12 +353,12 @@ def detect_psu_form_factor(record: dict) -> PsuFormFactor:
 def detect_12vhpwr(name: str) -> bool | None:
     if any(marker in name.upper() for marker in NATIVE_12VHPWR_MARKERS):
         return True
-    return None  # нет пометки — не доказательство отсутствия кабеля
+    return None  # no marker is not proof that the cable is missing
 
 
 def psu_id(record: dict) -> str:
-    # Как у памяти: название — это серия («Thermaltake Smart»), под ним блоки
-    # разной мощности и сертификата. Идентичность собираем из характеристик.
+    # As with memory: the name is a series ("Thermaltake Smart") covering units of
+    # different wattage and certification. The identity is built from the specs.
     parts = [
         record["name"],
         f"{record['wattage']}w",
@@ -386,17 +386,17 @@ def parse_power_supply(record: dict) -> PowerSupply:
         efficiency=EFFICIENCY.get(efficiency) if efficiency is not None else None,
         modularity=MODULARITY.get(modular) if modular is not None else None,
         has_12vhpwr=detect_12vhpwr(name),
-        # pcie_8pin и length_mm в датасете нет — остаются None
+        # pcie_8pin and length_mm are not in the dataset and stay None
     )
 
 
-# --- Видеокарты --------------------------------------------------------------------
+# --- Graphics cards ----------------------------------------------------------------
 
-# Чипсет → эталонная мощность (Total Board Power), Вт. В датасете TDP нет — выводим.
-# Ключи — ровно как в датасете. Объём памяти в ключе важен: у RTX 3050 6GB и 8GB
-# мощность различается почти вдвое. Разъёмы питания отсюда не вывести —
-# их выбирает производитель карты, а не NVIDIA/AMD.
-# Охват: поколения, которые продаются новыми. Проф. карты (Quadro, RTX Ada, Arc Pro) не включены.
+# Chipset -> reference power (Total Board Power), W. The dataset has no TDP, so we infer it.
+# Keys match the dataset exactly. Memory size in the key matters: the RTX 3050 6GB and 8GB
+# differ in power by almost 2x. Power connectors cannot be inferred from this:
+# the card maker chooses them, not NVIDIA/AMD.
+# Scope: generations sold new. Pro cards (Quadro, RTX Ada, Arc Pro) are excluded.
 GPU_TDP_W = {
     # NVIDIA RTX 30
     "GeForce RTX 3050 6GB": 70,
@@ -413,7 +413,7 @@ GPU_TDP_W = {
     "GeForce RTX 3090 Ti": 450,
     # NVIDIA RTX 40
     "GeForce RTX 4060": 115,
-    "GeForce RTX 4060 Ti": 165,  # 8GB — 160, 16GB — 165; в датасете не различаются, берём больше
+    "GeForce RTX 4060 Ti": 165,  # 8GB: 160, 16GB: 165; the dataset does not distinguish them, take the higher
     "GeForce RTX 4070": 200,
     "GeForce RTX 4070 SUPER": 220,
     "GeForce RTX 4070 Ti": 285,
@@ -451,7 +451,7 @@ GPU_TDP_W = {
     "Radeon RX 7900 XT": 315,
     "Radeon RX 7900 XTX": 355,
     # AMD RX 9000
-    "Radeon RX 9060 XT": 160,  # 8GB — 150, 16GB — 160; берём больше
+    "Radeon RX 9060 XT": 160,  # 8GB: 150, 16GB: 160; take the higher
     "Radeon RX 9070": 220,
     "Radeon RX 9070 XT": 304,
     # Intel Arc
@@ -466,12 +466,12 @@ GPU_TDP_W = {
 
 
 def normalize_gpu_chipset(chipset: str) -> str:
-    """LHR — версия с ограничением майнинга; по питанию не отличается, суффикс убираем."""
+    """LHR is the mining-limited version; power is the same, so drop the suffix."""
     return chipset.removesuffix(" LHR")
 
 
 def gpu_id(record: dict, chipset: str) -> str:
-    # Название — линейка производителя («Sapphire PULSE»), часто без чипа.
+    # The name is the maker's product line ("Sapphire PULSE"), often without the chip.
     parts = [
         record["name"],
         chipset,
@@ -504,14 +504,14 @@ def parse_gpu(record: dict) -> GPU:
         vram_gb=record["memory"],
         tdp_w=GPU_TDP_W[chipset],
         length_mm=record["length"],
-        # power_connectors и recommended_psu_w в датасете нет — остаются None
+        # power_connectors and recommended_psu_w are not in the dataset and stay None
     )
 
 
-# --- Накопители --------------------------------------------------------------------
+# --- Storage -----------------------------------------------------------------------
 
-# В датасете 2.5 и 3.5 — числа, а M.2 — строки вида "M.2-2280". Все длины M.2 для нас
-# одно и то же: правило считает слоты, а не длину. mSATA и PCIe-карты — вне охвата.
+# In the dataset 2.5 and 3.5 are numbers, while M.2 is a string like "M.2-2280". All M.2
+# lengths are the same to us: the rule counts slots, not length. mSATA and PCIe cards are out of scope.
 STORAGE_INCH_FORM_FACTORS = {
     2.5: StorageFormFactor.INCH_2_5,
     3.5: StorageFormFactor.INCH_3_5,
@@ -528,8 +528,8 @@ def detect_storage_form_factor(record: dict) -> StorageFormFactor:
 
 
 def detect_storage_interface(record: dict) -> StorageInterface:
-    # Проверяем начало строки, а не вхождение, иначе "mSATA" сойдёт за SATA.
-    # Вне охвата: mSATA, SAS, U.2, PATA и PCIe-карты ("PCIe x4" — без "M.2" в начале).
+    # Check the start of the string, not a substring, otherwise "mSATA" passes as SATA.
+    # Out of scope: mSATA, SAS, U.2, PATA and PCIe cards ("PCIe x4", no leading "M.2").
     value = record.get("interface")
     if isinstance(value, str):
         if value.startswith("M.2 PCIe"):
@@ -540,7 +540,7 @@ def detect_storage_interface(record: dict) -> StorageInterface:
 
 
 def detect_storage_media(record: dict) -> StorageMedia:
-    # "SSD" — строка; у жёстких дисков вместо этого число оборотов (7200, 5400...)
+    # "SSD" is a string; hard drives have an RPM number instead (7200, 5400...)
     value = record.get("type")
     if value == "SSD":
         return StorageMedia.SSD
@@ -550,8 +550,8 @@ def detect_storage_media(record: dict) -> StorageMedia:
 
 
 def storage_id(record: dict) -> str:
-    # Название — модель («Samsung 990 Pro»), объём — отдельный товар.
-    # Тип тоже нужен: «Western Digital Blue» — это и линейка HDD, и линейка SSD.
+    # The name is the model ("Samsung 990 Pro"); each capacity is a separate product.
+    # The type is needed too: "Western Digital Blue" is both an HDD and an SSD line.
     parts = [
         record["name"],
         str(record.get("type")),
@@ -576,10 +576,10 @@ def parse_storage(record: dict) -> Storage:
     )
 
 
-# --- Цены --------------------------------------------------------------------------
+# --- Prices ------------------------------------------------------------------------
 
 SOURCE = "docyx"
-CURRENCY = "USD"  # датасет — снимок американского PCPartPicker
+CURRENCY = "USD"  # the dataset is a snapshot of US PCPartPicker
 
 
 def to_price(value: float | None) -> Decimal | None:
@@ -596,10 +596,10 @@ def keep_cheaper(offers: dict[str, Offer], offer: Offer) -> None:
 
 
 def load_offers(path: Path, parse: Callable[[dict], Component]) -> dict[str, Offer]:
-    """Цены для деталей, которые загружает parse. Ключ — id детали.
+    """Prices for the parts that parse loads, keyed by part id.
 
-    Одна и та же деталь встречается в датасете несколько раз с разной ценой —
-    оставляем самую низкую. Записи без цены и записи, которые parse отклоняет, пропускаем.
+    The same part appears in the dataset several times with different prices;
+    the lowest is kept. Records without a price or rejected by parse are skipped.
     """
     offers: dict[str, Offer] = {}
     for record in read_jsonl(path):
@@ -618,9 +618,9 @@ def load_offers(path: Path, parse: Callable[[dict], Component]) -> dict[str, Off
 
 
 def load_offers_by_name(path: Path, parts: Mapping[str, Component]) -> dict[str, Offer]:
-    """Цены для деталей из другого источника (справочников), найденных по названию.
+    """Prices for parts from another source (seed files), matched by name.
 
-    Сравниваем без учёта регистра: в датасете «Lian Li LANCOOL 216», у нас «Lian Li Lancool 216».
+    Matching is case-insensitive: the dataset has "Lian Li LANCOOL 216", we have "Lian Li Lancool 216".
     """
     by_name: dict[str, list[str]] = {}
     for part in parts.values():

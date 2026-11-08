@@ -1,6 +1,6 @@
-"""Солвер на настоящих данных: задаём процессор и видеокарту — получаем остальное.
+"""Solver on real data: pick a CPU and a graphics card, get the rest.
 
-Запуск из корня проекта:
+Run from the project root:
     python scripts/solve_demo.py
 """
 
@@ -28,25 +28,25 @@ DATASET = Path(os.environ.get("DOCYX_PATH", "~/projects/pc-part-dataset")).expan
 
 
 def details(part: Component) -> str:
-    """Главные характеристики детали — чтобы было видно, что выбрал солвер."""
+    """Key specs of a part, to show what the solver picked."""
     match part:
         case CPU():
-            return f"{part.socket}, {part.cores} ядер"
+            return f"{part.socket}, {part.cores} cores"
         case Motherboard():
             return f"{part.chipset}, {part.form_factor}, {part.memory_type.upper()}"
         case RamKit():
-            return f"{part.modules}×{part.capacity_gb // part.modules} ГБ {part.memory_type.upper()}-{part.speed_mhz}"
+            return f"{part.modules}×{part.capacity_gb // part.modules} GB {part.memory_type.upper()}-{part.speed_mhz}"
         case GPU():
-            return f"{part.chipset}, {part.length_mm} мм"
+            return f"{part.chipset}, {part.length_mm} mm"
         case Storage():
-            return f"{part.capacity_gb} ГБ {part.kind}"
+            return f"{part.capacity_gb} GB {part.kind}"
         case PowerSupply():
-            return f"{part.wattage_w} Вт, {part.efficiency or 'без сертификата'}"
+            return f"{part.wattage_w} W, {part.efficiency or 'no certification'}"
         case Cooling():
             return (
-                f"башня {part.height_mm} мм"
+                f"tower {part.height_mm} mm"
                 if part.height_mm
-                else f"водянка {part.radiator_mm} мм"
+                else f"AIO {part.radiator_mm} mm"
             )
     return ""
 
@@ -54,7 +54,7 @@ def details(part: Component) -> str:
 catalog = load_catalog(DATASET)
 
 cpu = catalog.find(ComponentType.CPU, "AMD Ryzen 5 7600")
-# Самая дешёвая RTX 4070 в каталоге (кандидаты уже отсортированы по цене)
+# Cheapest RTX 4070 in the catalog (candidates are already sorted by price)
 gpu = next(
     g
     for g in catalog.candidates(ComponentType.GPU)
@@ -69,29 +69,29 @@ solution = solver.complete(Build(cpu=cpu, gpu=gpu))
 elapsed = time.perf_counter() - started
 
 if solution is None:
-    print("Совместимой сборки не нашлось")
+    print("No compatible build found")
     raise SystemExit(1)
 
 build = solution.build
-print(f"Требования: {requirements.describe()}\n")
+print(f"Requirements: {requirements.describe()}\n")
 for label, part in [
     ("CPU", build.cpu),
-    ("Плата", build.motherboard),
-    ("Память", build.ram),
-    ("Видеокарта", build.gpu),
-    ("Диск", build.storage[0]),
-    ("БП", build.psu),
-    ("Корпус", build.case),
-    ("Кулер", build.cooling),
+    ("Motherboard", build.motherboard),
+    ("Memory", build.ram),
+    ("Graphics card", build.gpu),
+    ("Storage", build.storage[0]),
+    ("Power supply", build.psu),
+    ("Case", build.case),
+    ("CPU cooler", build.cooling),
 ]:
     if part is None:
         continue
     print(
-        f"  {label:11} {part.name:40} {details(part):30} {catalog.price(part):>8} {catalog.currency}"
+        f"  {label:14} {part.name:40} {details(part):30} {catalog.price(part):>8} {catalog.currency}"
     )
-print(f"  {'Итого':83} {solution.total:>8} {catalog.currency}")
+print(f"  {'Total':86} {solution.total:>8} {catalog.currency}")
 
-print(f"\nПотребление ~{estimated_power_w(build)} Вт")
-print(f"Проверок деталей: {solution.steps}, время поиска: {elapsed:.2f} с")
+print(f"\nPower draw ~{estimated_power_w(build)} W")
+print(f"Part checks: {solution.steps}, search time: {elapsed:.2f} s")
 for issue in solution.issues:
     print(f"  [{issue.severity}] {issue.rule}: {issue.message}")

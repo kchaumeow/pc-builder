@@ -32,7 +32,7 @@ from tests.test_compatibility import (
 
 
 def priced(*items: tuple[Component, str]) -> Catalog:
-    """Каталог из пар (деталь, цена)."""
+    """A catalog from (part, price) pairs."""
     parts = {part.id: part for part, _ in items}
     offers = {
         part.id: Offer(part_id=part.id, source="test", price=Decimal(price))
@@ -51,7 +51,7 @@ def gold_psu(part_id: str, **kwargs):
     )
 
 
-# Полный набор совместимых деталей по одной на категорию
+# A full set of compatible parts, one per category
 BASE = [
     (named(make_motherboard, "mb"), "150"),
     (named(make_ram, "ram"), "100"),
@@ -87,8 +87,8 @@ def test_skips_cheaper_incompatible_part():
 
 
 def test_backtracks_when_later_category_fails():
-    # Самая дешёвая плата — ATX, но единственный корпус принимает только Micro-ATX.
-    # Выбор платы нужно пересмотреть, когда дело дойдёт до корпуса.
+    # The cheapest motherboard is ATX, but the only case takes Micro-ATX only.
+    # The motherboard choice has to be revisited once the case comes up.
     atx = (
         named(make_motherboard, "mb-atx", form_factor=MotherBoardFormFactor.ATX),
         "100",
@@ -153,7 +153,7 @@ def test_with_part_does_not_change_original():
     assert build.ram is None
 
 
-# --- Требования к качеству ----------------------------------------------------------
+# --- Quality requirements ----------------------------------------------------------
 
 LOOSE = Requirements(
     min_ram_modules=1, min_ram_speed_mhz={}, nvme_only=False, min_psu_efficiency=None
@@ -197,9 +197,9 @@ def test_sata_ssd_rejected_when_nvme_only():
 @pytest.mark.parametrize(
     "efficiency, accepted",
     [
-        (None, False),  # сертификат неизвестен
-        (PsuEfficiency.PLUS, False),  # ниже Bronze
-        (PsuEfficiency.BRONZE, True),  # ровно граница
+        (None, False),  # certification unknown
+        (PsuEfficiency.PLUS, False),  # below Bronze
+        (PsuEfficiency.BRONZE, True),  # exactly at the threshold
         (PsuEfficiency.PLATINUM, True),
     ],
 )

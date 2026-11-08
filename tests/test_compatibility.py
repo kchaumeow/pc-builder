@@ -35,10 +35,10 @@ from pcbuilder.domain.models import (
 )
 from pcbuilder.domain.models import PowerSupply as PSU
 
-# --- Фабрики -----------------------------------------------------------------------
-# Параметры — только то, что тесты меняют. Дефолты нейтральные:
-# все фабрики вместе дают совместимую сборку без единой претензии.
-# Значения передаются как есть, без `x or дефолт`: 0 и False — законные значения.
+# --- Factories ---------------------------------------------------------------------
+# Parameters cover only what tests change. Defaults are neutral:
+# all factories together produce a compatible build with no issues at all.
+# Values are passed as is, without `x or default`: 0 and False are legitimate values.
 
 
 def make_cpu(
@@ -55,7 +55,7 @@ def make_cpu(
         socket=socket,
         tdp_w=tdp_w,
         memory_types=memory_types
-        or [MemoryType.DDR5],  # пустой список бессмыслен — or допустим
+        or [MemoryType.DDR5],  # an empty list makes no sense, so `or` is fine
         cores=6,
         threads=12,
         includes_cooler=includes_cooler,
@@ -197,7 +197,7 @@ def make_storage(
 
 
 def make_good_build(**overrides) -> Build:
-    """Полностью совместимая сборка; любую деталь можно подменить."""
+    """A fully compatible build; any part can be overridden."""
     build = Build(
         cpu=make_cpu(),
         motherboard=make_motherboard(),
@@ -212,11 +212,11 @@ def make_good_build(**overrides) -> Build:
 
 
 def rules(issues) -> set[str]:
-    """Коды сработавших правил — чтобы сравнивать без учёта порядка."""
+    """Codes of triggered rules, to compare regardless of order."""
     return {issue.rule for issue in issues}
 
 
-# --- Сокет CPU ↔ плата -------------------------------------------------------------
+# --- CPU socket <-> motherboard ----------------------------------------------------
 
 
 def test_socket_match_is_ok():
@@ -237,7 +237,7 @@ def test_socket_rule_silent_without_motherboard():
     assert cpu_socket_matches_motherboard(Build(cpu=make_cpu())) == []
 
 
-# --- Память ↔ плата ----------------------------------------------------------------
+# --- Memory <-> motherboard --------------------------------------------------------
 
 
 def test_ram_matches_motherboard_is_ok():
@@ -284,7 +284,7 @@ def test_ram_motherboard_rule_silent_without_motherboard():
     assert ram_matches_motherboard(Build(ram=make_ram())) == []
 
 
-# --- Память ↔ процессор ------------------------------------------------------------
+# --- Memory <-> CPU ----------------------------------------------------------------
 
 
 def test_ram_supported_by_cpu_is_ok():
@@ -304,7 +304,7 @@ def test_ram_not_supported_by_cpu_is_error():
 
 
 def test_cpu_with_two_memory_types_accepts_both():
-    # Intel 12–14 поколения работают и с DDR4, и с DDR5
+    # Intel 12th-14th gen work with both DDR4 and DDR5
     cpu = make_cpu(socket="LGA1700", memory_types=[MemoryType.DDR4, MemoryType.DDR5])
     for memory_type in (MemoryType.DDR4, MemoryType.DDR5):
         build = Build(cpu=cpu, ram=make_ram(memory_type=memory_type))
@@ -315,8 +315,8 @@ def test_ram_cpu_rule_silent_without_cpu():
     assert ram_matches_cpu(Build(ram=make_ram())) == []
 
 
-# --- Мощность БП -------------------------------------------------------------------
-# Фабрики по умолчанию: CPU 65 + GPU 200 + база 75 = 340 Вт; ×1.25 → 425 Вт
+# --- PSU wattage -------------------------------------------------------------------
+# Factory defaults: CPU 65 + GPU 200 + base 75 = 340 W; x1.25 -> 425 W
 
 
 def test_estimated_power():
@@ -336,7 +336,7 @@ def test_psu_one_watt_short_is_error():
 
 
 def test_psu_without_gpu_needs_less_power():
-    # 75 + 65 = 140 Вт; ×1.25 → 175 Вт
+    # 75 + 65 = 140 W; x1.25 -> 175 W
     assert (
         psu_wattage_sufficient(Build(cpu=make_cpu(), psu=make_psu(wattage_w=175))) == []
     )
@@ -365,7 +365,7 @@ def test_psu_wattage_rule_silent_without_psu():
     assert psu_wattage_sufficient(Build(cpu=make_cpu(), gpu=make_gpu())) == []
 
 
-# --- Разъёмы БП --------------------------------------------------------------------
+# --- PSU connectors ----------------------------------------------------------------
 
 
 def test_psu_enough_8pin_is_ok():
@@ -386,7 +386,7 @@ def test_psu_3_8pin_connectors_insufficient_is_error():
 
 
 def test_psu_with_zero_8pin_known_is_error():
-    # 0 — это «точно нет», а не «неизвестно»
+    # 0 means "definitely none", not "unknown"
     build = Build(
         psu=make_psu(pcie_8pin=0), gpu=make_gpu(power_connectors=["8-pin", "8-pin"])
     )
@@ -449,7 +449,7 @@ def test_psu_connectors_rule_silent_without_gpu():
     assert psu_has_gpu_connectors(Build(psu=make_psu(pcie_8pin=0))) == []
 
 
-# --- Плата ↔ корпус ----------------------------------------------------------------
+# --- Motherboard <-> case ----------------------------------------------------------
 
 
 def test_motherboard_fits_case_is_ok():
@@ -483,7 +483,7 @@ def test_motherboard_case_rule_silent_without_motherboard():
     assert motherboard_fits_case(Build(case=make_case())) == []
 
 
-# --- Видеокарта ↔ корпус -----------------------------------------------------------
+# --- Graphics card <-> case --------------------------------------------------------
 
 
 def test_gpu_exactly_at_case_limit_is_ok():
@@ -511,7 +511,7 @@ def test_gpu_case_rule_silent_without_gpu():
     assert gpu_fits_case(Build(case=make_case())) == []
 
 
-# --- Кулер ↔ корпус ----------------------------------------------------------------
+# --- CPU cooler <-> case -----------------------------------------------------------
 
 
 def test_cooler_exactly_at_case_limit_is_ok():
@@ -531,7 +531,7 @@ def test_cooler_one_mm_too_tall_is_error():
 
 
 def test_cooler_without_height_is_silent():
-    # Водянка: у неё нет башни, ограничение по высоте неприменимо
+    # AIO: no tower, so the height limit does not apply
     build = Build(
         cooling=make_cooling(height_mm=None), case=make_case(max_cooler_height_mm=100)
     )
@@ -546,7 +546,7 @@ def test_cooler_case_rule_silent_without_cooler():
     assert cooler_fits_case(Build(case=make_case())) == []
 
 
-# --- БП ↔ корпус -------------------------------------------------------------------
+# --- PSU <-> case ------------------------------------------------------------------
 
 
 def test_psu_form_factor_supported_is_ok():
@@ -614,7 +614,7 @@ def test_psu_case_rule_silent_without_psu():
     assert psu_fits_case(Build(case=make_case())) == []
 
 
-# --- Кулер ↔ процессор -------------------------------------------------------------
+# --- CPU cooler <-> CPU ------------------------------------------------------------
 
 
 def test_cooler_supports_cpu_socket_is_ok():
@@ -663,7 +663,7 @@ def test_cooler_without_tdp_rating_is_silent():
     )
 
 
-# --- Накопители ↔ плата ------------------------------------------------------------
+# --- Storage <-> motherboard -------------------------------------------------------
 
 
 def test_storage_fits_motherboard_is_ok():
@@ -698,7 +698,7 @@ def test_too_many_sata_drives_is_error():
 
 
 def test_m2_sata_drive_uses_m2_slot_not_sata_port():
-    # Crucial MX500 M.2: интерфейс SATA, но физически занимает M.2-слот
+    # Crucial MX500 M.2: SATA interface, but physically takes an M.2 slot
     m2_sata = make_storage(StorageFormFactor.M2, StorageInterface.SATA)
     build = Build(
         motherboard=make_motherboard(m2_slots=1, sata_ports=0), storage=[m2_sata]
@@ -707,13 +707,13 @@ def test_m2_sata_drive_uses_m2_slot_not_sata_port():
 
 
 def test_gpu_with_unknown_connectors_is_silent():
-    # Карты из датасета: разъёмы неизвестны
+    # Dataset cards: connectors unknown
     gpu = make_gpu().model_copy(update={"power_connectors": None})
     assert psu_has_gpu_connectors(Build(psu=make_psu(pcie_8pin=0), gpu=gpu)) == []
 
 
 def test_storage_unknown_slots_is_silent():
-    # Платы из датасета: число M.2 и SATA неизвестно
+    # Dataset motherboards: M.2 and SATA counts unknown
     build = Build(
         motherboard=make_motherboard(m2_slots=None, sata_ports=None),
         storage=[
@@ -732,7 +732,7 @@ def test_storage_rule_silent_without_motherboard():
     assert storage_fits_motherboard(Build(storage=[make_storage()])) == []
 
 
-# --- Правила полноты ---------------------------------------------------------------
+# --- Completeness rules ------------------------------------------------------------
 
 
 def test_cpu_with_boxed_cooler_needs_no_cooler():
@@ -768,11 +768,11 @@ def test_graphics_rule_silent_without_cpu():
     assert has_graphics_output(Build()) == []
 
 
-# --- check(): все правила вместе ---------------------------------------------------
+# --- check(): all rules together ---------------------------------------------------
 
 
 def test_good_build_has_no_issues():
-    # Самый важный тест: все фабрики вместе дают сборку без единой претензии
+    # The most important test: all factories together give a build with no issues
     assert check(make_good_build(), complete=True) == []
 
 
@@ -787,7 +787,7 @@ def test_partial_build_ignores_missing_cooler():
 def test_complete_check_reports_missing_cooler_once():
     build = make_good_build(cpu=make_cpu(includes_cooler=False), cooling=None)
     issues = check(build, complete=True)
-    # Список, а не множество: множество спрятало бы дубликат
+    # A list, not a set: a set would hide a duplicate
     assert [issue.rule for issue in issues] == ["CPU_NO_COOLING"]
 
 

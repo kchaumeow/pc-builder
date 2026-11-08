@@ -1,11 +1,11 @@
-"""Солвер v1: достроить сборку самыми дешёвыми совместимыми деталями.
+"""Solver v1: complete a build with the cheapest compatible parts.
 
-Поиск с возвратом (backtracking): категории заполняются по очереди, кандидаты
-перебираются от дешёвых к дорогим, после каждой детали — check() частичной сборки.
-Если в какой-то категории ничего не подошло — возвращаемся и меняем предыдущий выбор.
+Backtracking search: categories are filled one at a time, candidates are tried from
+cheapest to most expensive, and the partial build is check()ed after each part.
+If nothing fits in some category, we backtrack and change an earlier choice.
 
-Ограничение v1: «дешёвое в каждой категории по очереди» даёт очень дешёвую сборку,
-но не гарантирует самую дешёвую из возможных.
+v1 limitation: "cheapest in each category in turn" yields a very cheap build,
+but doesn't guarantee the cheapest possible one.
 """
 
 from collections.abc import Sequence
@@ -27,10 +27,11 @@ from pcbuilder.domain.models import (
     StorageMedia,
 )
 
-# Порядок важен для скорости: сначала то, что сильнее всего ограничивает остальное.
-# Плата сразу после процессора (сокет), память после платы (тип), корпус после платы,
-# видеокарты и БП (форм-факторы и длины), кулер последним (сокет и высота под корпус).
-# Видеокарту солвер не выбирает: её задаёт пользователь (или её нет — встроенная графика).
+# Order matters for speed: whatever constrains the rest the most goes first.
+# Motherboard right after the CPU (socket), memory after the motherboard (type), case
+# after the motherboard, GPU and PSU (form factors and lengths), cooler last (socket and
+# case height). The solver doesn't pick the GPU: the user sets it (or there is none —
+# integrated graphics).
 FILL_ORDER: tuple[ComponentType, ...] = (
     ComponentType.CPU,
     ComponentType.MOTHERBOARD,
@@ -52,48 +53,46 @@ BUILD_FIELDS = {
 }
 
 
-# Порядок объявления в PsuEfficiency — от худшего к лучшему
+# PsuEfficiency members are declared from worst to best
 EFFICIENCY_RANK = {efficiency: rank for rank, efficiency in enumerate(PsuEfficiency)}
 
 
 @dataclass
 class Requirements:
-    """Пожелания сверх совместимости: чего сборка должна быть не хуже.
+    """Requirements beyond compatibility: the minimum the build must meet.
 
-    Совместимость отвечает на «соберётся ли», требования — на «устроит ли это человека».
-    Без них солвер находит буквально самое дешёвое: блок питания за $26 и одну планку памяти.
-    Любое требование можно выключить: None или False.
+    Compatibility answers "will it go together", requirements answer "will it satisfy
+    the person". Without them the solver finds the literal cheapest: a $26 PSU and a
+    single memory stick. Any requirement can be turned off with None or False.
     """
 
-    # Память
+    # Memory
     min_ram_gb: int = 16
-    min_ram_modules: int = 2  # две планки — двухканальный режим, заметно быстрее одной
-    min_ram_speed_mhz: dict[MemoryType, int] | None = (
-        None  # по умолчанию — см. __post_init__
-    )
+    min_ram_modules: int = 2  # two sticks — dual channel, noticeably faster than one
+    min_ram_speed_mhz: dict[MemoryType, int] | None = None  # default: see __post_init__
 
-    # Накопитель
+    # Storage
     min_storage_gb: int = 500
     ssd_only: bool = True
     nvme_only: bool = True
 
-    # Блок питания
+    # Power supply
     min_psu_efficiency: PsuEfficiency | None = PsuEfficiency.BRONZE
 
     def __post_init__(self) -> None:
         if self.min_ram_speed_mhz is None:
-            # Ниже этого — заметная потеря производительности для своей платформы
+            # Below this, the platform loses noticeable performance
             self.min_ram_speed_mhz = {MemoryType.DDR4: 3200, MemoryType.DDR5: 5600}
 
     def describe(self) -> str:
-        """Требования человеческим языком — для вывода пользователю."""
-        lines = [f"память ≥ {self.min_ram_gb} ГБ, планок ≥ {self.min_ram_modules}"]
+        """Requirements in plain language, for showing to the user."""
+        lines = [f"RAM ≥ {self.min_ram_gb} GB, ≥ {self.min_ram_modules} modules"]
         for memory_type, speed in (self.min_ram_speed_mhz or {}).items():
-            lines.append(f"{memory_type.upper()} ≥ {speed} МГц")
-        drive = "NVMe SSD" if self.nvme_only else "SSD" if self.ssd_only else "диск"
-        lines.append(f"{drive} ≥ {self.min_storage_gb} ГБ")
+            lines.append(f"{memory_type.upper()} ≥ {speed} MHz")
+        drive = "NVMe SSD" if self.nvme_only else "SSD" if self.ssd_only else "drive"
+        lines.append(f"{drive} ≥ {self.min_storage_gb} GB")
         if self.min_psu_efficiency is not None:
-            lines.append(f"БП не хуже {self.min_psu_efficiency}")
+            lines.append(f"PSU {self.min_psu_efficiency} or better")
         return "; ".join(lines)
 
     def accepts(self, part: Component) -> bool:
@@ -122,7 +121,7 @@ class Requirements:
         if self.min_psu_efficiency is None:
             return True
         if psu.efficiency is None:
-            return False  # сертификат неизвестен — не можем подтвердить качество
+            return False  # certification unknown — can't confirm quality
         return (
             EFFICIENCY_RANK[psu.efficiency] >= EFFICIENCY_RANK[self.min_psu_efficiency]
         )
@@ -132,8 +131,8 @@ class Requirements:
 class Solution:
     build: Build
     total: Decimal
-    issues: list[Issue]  # только предупреждения: сборки с ошибками солвер не возвращает
-    steps: int  # сколько раз проверялась деталь — для понимания цены поиска
+    issues: list[Issue]  # warnings only: the solver never returns builds with errors
+    steps: int  # how many times a part was checked — shows the cost of the search
 
 
 class SearchLimitReached(Exception):
@@ -145,7 +144,7 @@ def has_errors(issues: list[Issue]) -> bool:
 
 
 def with_part(build: Build, part: Component) -> Build:
-    """Новая сборка с добавленной деталью. Исходная не меняется — это важно для возврата."""
+    """A new build with the part added. The original is unchanged — backtracking relies on that."""
     if part.category == ComponentType.STORAGE:
         return build.model_copy(update={"storage": [*build.storage, part]})
     return build.model_copy(update={BUILD_FIELDS[part.category]: part})
@@ -158,13 +157,13 @@ def is_filled(build: Build, category: ComponentType) -> bool:
 
 
 def needs(build: Build, category: ComponentType) -> bool:
-    """Нужна ли сборке деталь этой категории."""
+    """Whether the build needs a part of this category."""
     if (
         category == ComponentType.COOLING
         and build.cpu is not None
         and build.cpu.includes_cooler
     ):
-        return False  # кулер в коробке с процессором
+        return False  # the cooler comes boxed with the CPU
     return not is_filled(build, category)
 
 
@@ -181,10 +180,10 @@ class Solver:
         self.steps = 0
 
     def complete(self, build: Build) -> Solution | None:
-        """Достроить сборку. None — совместимого варианта нет."""
+        """Complete the build. None means no compatible option exists."""
         self.steps = 0
         if has_errors(check(build)):
-            return None  # уже выбранные детали несовместимы между собой
+            return None  # the parts already chosen are incompatible with each other
         result = self._search(build, [c for c in FILL_ORDER if needs(build, c)])
         if result is None:
             return None
@@ -210,7 +209,7 @@ class Solver:
         return sum((self.catalog.price(p) for p in parts), Decimal(0))
 
     def _fits(self, build: Build, part: Component) -> Build | None:
-        """Сборка с деталью, если деталь подходит; иначе None."""
+        """The build with the part if it fits; otherwise None."""
         self.steps += 1
         if self.steps > self.max_steps:
             raise SearchLimitReached(f"Search stopped after {self.max_steps} checks")
@@ -228,8 +227,8 @@ class Solver:
             candidate = self._fits(build, part)
             if candidate is None:
                 continue
-            # Заглядывание вперёд: если для какой-то из следующих категорий уже не осталось
-            # ни одной подходящей детали, этот выбор — тупик, и спускаться в него незачем.
+            # Look-ahead: if some later category has no suitable part left, this choice
+            # is a dead end and there's no point descending into it.
             if not all(self._any_fits(candidate, later) for later in rest):
                 continue
             result = self._search(candidate, rest)

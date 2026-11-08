@@ -1,5 +1,5 @@
 {
-  "note": "Корпуса, заполненные вручную. Лимиты — из спецификаций производителей. verified=false — значение не сверено с сайтом производителя; перед использованием проверить и поставить true.",
+  "note": "Hand-filled cases. Limits come from manufacturer specs. verified=false means the value has not been checked against the manufacturer's site; verify it and set true before use.",
   "items": [
     {"brand": "Fractal Design", "model": "North", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 355, "max_cooler_height_mm": 170, "psu_form_factors": ["ATX"], "verified": false},
     {"brand": "Fractal Design", "model": "Pop Air", "supported_motherboard_form_factors": ["ATX", "Micro-ATX", "Mini-ITX"], "max_gpu_length_mm": 405, "max_cooler_height_mm": 170, "psu_form_factors": ["ATX"], "verified": false},

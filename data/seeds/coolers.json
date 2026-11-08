@@ -1,5 +1,5 @@
 {
-  "note": "Кулеры, заполненные вручную. LGA1851 использует то же крепление, что LGA1700. height_mm — только у башенных; у водянок radiator_mm. verified=false — не сверено с сайтом производителя.",
+  "note": "Hand-filled coolers. LGA1851 uses the same mounting as LGA1700. height_mm is for tower coolers only; AIOs have radiator_mm. verified=false means not checked against the manufacturer's site.",
   "items": [
     {"brand": "Thermalright", "model": "Peerless Assassin 120 SE", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 155, "verified": false},
     {"brand": "Thermalright", "model": "Phantom Spirit 120 SE", "sockets": ["AM4", "AM5", "LGA1700", "LGA1851"], "height_mm": 154, "verified": false},
