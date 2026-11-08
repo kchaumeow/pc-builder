@@ -14,7 +14,18 @@ from decimal import Decimal
 
 from pcbuilder.catalog import Catalog
 from pcbuilder.domain.compatibility import Issue, Severity, check
-from pcbuilder.domain.models import Build, Component, ComponentType, RamKit, Storage, StorageMedia
+from pcbuilder.domain.models import (
+    Build,
+    Component,
+    ComponentType,
+    MemoryType,
+    PowerSupply,
+    PsuEfficiency,
+    RamKit,
+    Storage,
+    StorageInterface,
+    StorageMedia,
+)
 
 # Порядок важен для скорости: сначала то, что сильнее всего ограничивает остальное.
 # Плата сразу после процессора (сокет), память после платы (тип), корпус после платы,
@@ -41,22 +52,82 @@ BUILD_FIELDS = {
 }
 
 
+# Порядок объявления в PsuEfficiency — от худшего к лучшему
+EFFICIENCY_RANK = {efficiency: rank for rank, efficiency in enumerate(PsuEfficiency)}
+
+
 @dataclass
 class Requirements:
-    """Пожелания сверх совместимости. Без них солвер найдёт 8 ГБ памяти и диск на 128 ГБ."""
+    """Пожелания сверх совместимости: чего сборка должна быть не хуже.
 
+    Совместимость отвечает на «соберётся ли», требования — на «устроит ли это человека».
+    Без них солвер находит буквально самое дешёвое: блок питания за $26 и одну планку памяти.
+    Любое требование можно выключить: None или False.
+    """
+
+    # Память
     min_ram_gb: int = 16
+    min_ram_modules: int = 2  # две планки — двухканальный режим, заметно быстрее одной
+    min_ram_speed_mhz: dict[MemoryType, int] | None = (
+        None  # по умолчанию — см. __post_init__
+    )
+
+    # Накопитель
     min_storage_gb: int = 500
     ssd_only: bool = True
+    nvme_only: bool = True
+
+    # Блок питания
+    min_psu_efficiency: PsuEfficiency | None = PsuEfficiency.BRONZE
+
+    def __post_init__(self) -> None:
+        if self.min_ram_speed_mhz is None:
+            # Ниже этого — заметная потеря производительности для своей платформы
+            self.min_ram_speed_mhz = {MemoryType.DDR4: 3200, MemoryType.DDR5: 5600}
+
+    def describe(self) -> str:
+        """Требования человеческим языком — для вывода пользователю."""
+        lines = [f"память ≥ {self.min_ram_gb} ГБ, планок ≥ {self.min_ram_modules}"]
+        for memory_type, speed in (self.min_ram_speed_mhz or {}).items():
+            lines.append(f"{memory_type.upper()} ≥ {speed} МГц")
+        drive = "NVMe SSD" if self.nvme_only else "SSD" if self.ssd_only else "диск"
+        lines.append(f"{drive} ≥ {self.min_storage_gb} ГБ")
+        if self.min_psu_efficiency is not None:
+            lines.append(f"БП не хуже {self.min_psu_efficiency}")
+        return "; ".join(lines)
 
     def accepts(self, part: Component) -> bool:
         if isinstance(part, RamKit):
-            return part.capacity_gb >= self.min_ram_gb
+            return self._accepts_ram(part)
         if isinstance(part, Storage):
-            if self.ssd_only and part.media != StorageMedia.SSD:
-                return False
-            return part.capacity_gb >= self.min_storage_gb
+            return self._accepts_storage(part)
+        if isinstance(part, PowerSupply):
+            return self._accepts_psu(part)
         return True
+
+    def _accepts_ram(self, ram: RamKit) -> bool:
+        if ram.capacity_gb < self.min_ram_gb or ram.modules < self.min_ram_modules:
+            return False
+        min_speed = (self.min_ram_speed_mhz or {}).get(ram.memory_type)
+        return min_speed is None or ram.speed_mhz >= min_speed
+
+    def _accepts_storage(self, drive: Storage) -> bool:
+        if drive.capacity_gb < self.min_storage_gb:
+            return False
+        if self.ssd_only and drive.media != StorageMedia.SSD:
+            return False
+        if self.nvme_only and drive.interface != StorageInterface.NVME:
+            return False
+        return True
+
+    def _accepts_psu(self, psu: PowerSupply) -> bool:
+        if self.min_psu_efficiency is None:
+            return True
+        if psu.efficiency is None:
+            return False  # сертификат неизвестен — не можем подтвердить качество
+        return (
+            EFFICIENCY_RANK[psu.efficiency] >= EFFICIENCY_RANK[self.min_psu_efficiency]
+        )
 
 
 @dataclass
@@ -90,13 +161,22 @@ def is_filled(build: Build, category: ComponentType) -> bool:
 
 def needs(build: Build, category: ComponentType) -> bool:
     """Нужна ли сборке деталь этой категории."""
-    if category == ComponentType.COOLING and build.cpu is not None and build.cpu.includes_cooler:
+    if (
+        category == ComponentType.COOLING
+        and build.cpu is not None
+        and build.cpu.includes_cooler
+    ):
         return False  # кулер в коробке с процессором
     return not is_filled(build, category)
 
 
 class Solver:
-    def __init__(self, catalog: Catalog, requirements: Requirements | None = None, max_steps: int = 200_000):
+    def __init__(
+        self,
+        catalog: Catalog,
+        requirements: Requirements | None = None,
+        max_steps: int = 200_000,
+    ):
         self.catalog = catalog
         self.requirements = requirements or Requirements()
         self.max_steps = max_steps
@@ -118,7 +198,15 @@ class Solver:
         )
 
     def total(self, build: Build) -> Decimal:
-        singles = (build.cpu, build.motherboard, build.ram, build.gpu, build.psu, build.case, build.cooling)
+        singles = (
+            build.cpu,
+            build.motherboard,
+            build.ram,
+            build.gpu,
+            build.psu,
+            build.case,
+            build.cooling,
+        )
         parts: list[Component] = [p for p in singles if p is not None]
         parts.extend(build.storage)
         return sum((self.catalog.price(p) for p in parts), Decimal(0))
@@ -152,4 +240,7 @@ class Solver:
         return None
 
     def _any_fits(self, build: Build, category: ComponentType) -> bool:
-        return any(self._fits(build, part) is not None for part in self.catalog.candidates(category))
+        return any(
+            self._fits(build, part) is not None
+            for part in self.catalog.candidates(category)
+        )

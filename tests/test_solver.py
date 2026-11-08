@@ -3,8 +3,22 @@ from decimal import Decimal
 import pytest
 
 from pcbuilder.catalog import Catalog
-from pcbuilder.domain.models import Build, Component, MotherBoardFormFactor, Offer
-from pcbuilder.recommender.solver import Requirements, SearchLimitReached, Solver, with_part
+from pcbuilder.domain.models import (
+    Build,
+    Component,
+    MemoryType,
+    MotherBoardFormFactor,
+    Offer,
+    PsuEfficiency,
+    StorageFormFactor,
+    StorageInterface,
+)
+from pcbuilder.recommender.solver import (
+    Requirements,
+    SearchLimitReached,
+    Solver,
+    with_part,
+)
 from tests.test_compatibility import (
     make_case,
     make_cooling,
@@ -20,7 +34,10 @@ from tests.test_compatibility import (
 def priced(*items: tuple[Component, str]) -> Catalog:
     """Каталог из пар (деталь, цена)."""
     parts = {part.id: part for part, _ in items}
-    offers = {part.id: Offer(part_id=part.id, source="test", price=Decimal(price)) for part, price in items}
+    offers = {
+        part.id: Offer(part_id=part.id, source="test", price=Decimal(price))
+        for part, price in items
+    }
     return Catalog(parts, offers)
 
 
@@ -28,12 +45,18 @@ def named(factory, part_id: str, **kwargs):
     return factory(**kwargs).model_copy(update={"id": part_id})
 
 
+def gold_psu(part_id: str, **kwargs):
+    return named(make_psu, part_id, **kwargs).model_copy(
+        update={"efficiency": PsuEfficiency.GOLD}
+    )
+
+
 # Полный набор совместимых деталей по одной на категорию
 BASE = [
     (named(make_motherboard, "mb"), "150"),
     (named(make_ram, "ram"), "100"),
     (named(make_storage, "ssd"), "80"),
-    (named(make_psu, "psu"), "90"),
+    (gold_psu("psu"), "90"),
     (named(make_case, "case"), "70"),
     (named(make_cooling, "cooler"), "30"),
 ]
@@ -46,7 +69,7 @@ def test_completes_build():
     assert solution is not None
     assert solution.build.motherboard.id == "mb"
     assert solution.build.cooling.id == "cooler"
-    assert solution.total == Decimal("1220")
+    assert solution.total == Decimal(1220)
     assert solution.issues == []
 
 
@@ -66,12 +89,26 @@ def test_skips_cheaper_incompatible_part():
 def test_backtracks_when_later_category_fails():
     # Самая дешёвая плата — ATX, но единственный корпус принимает только Micro-ATX.
     # Выбор платы нужно пересмотреть, когда дело дойдёт до корпуса.
-    atx = (named(make_motherboard, "mb-atx", form_factor=MotherBoardFormFactor.ATX), "100")
-    matx = (named(make_motherboard, "mb-matx", form_factor=MotherBoardFormFactor.MICRO_ATX), "130")
-    small_case = (named(make_case, "case-matx",
-                        supported_motherboard_form_factors=[MotherBoardFormFactor.MICRO_ATX]), "70")
+    atx = (
+        named(make_motherboard, "mb-atx", form_factor=MotherBoardFormFactor.ATX),
+        "100",
+    )
+    matx = (
+        named(make_motherboard, "mb-matx", form_factor=MotherBoardFormFactor.MICRO_ATX),
+        "130",
+    )
+    small_case = (
+        named(
+            make_case,
+            "case-matx",
+            supported_motherboard_form_factors=[MotherBoardFormFactor.MICRO_ATX],
+        ),
+        "70",
+    )
     others = [item for item in BASE if item[0].id not in ("mb", "case")]
-    catalog = priced((START.cpu, "200"), (START.gpu, "500"), atx, matx, small_case, *others)
+    catalog = priced(
+        (START.cpu, "200"), (START.gpu, "500"), atx, matx, small_case, *others
+    )
 
     solution = Solver(catalog).complete(START)
     assert solution.build.motherboard.id == "mb-matx"
@@ -92,7 +129,7 @@ def test_boxed_cooler_needs_no_cooler():
 
 
 def test_no_solution_returns_none():
-    weak_psu = (named(make_psu, "psu-weak", wattage_w=200), "40")
+    weak_psu = (gold_psu("psu-weak", wattage_w=200), "40")
     others = [item for item in BASE if item[0].id != "psu"]
     catalog = priced((START.cpu, "200"), (START.gpu, "500"), weak_psu, *others)
     assert Solver(catalog).complete(START) is None
@@ -114,3 +151,63 @@ def test_with_part_does_not_change_original():
     build = Build()
     with_part(build, make_ram())
     assert build.ram is None
+
+
+# --- Требования к качеству ----------------------------------------------------------
+
+LOOSE = Requirements(
+    min_ram_modules=1, min_ram_speed_mhz={}, nvme_only=False, min_psu_efficiency=None
+)
+
+
+def test_single_stick_rejected_by_default():
+    single = (named(make_ram, "ram-1x32", modules=1, capacity_gb=32), "60")
+    catalog = priced((START.cpu, "200"), (START.gpu, "500"), single, *BASE)
+    assert Solver(catalog).complete(START).build.ram.id == "ram"
+    assert Solver(catalog, LOOSE).complete(START).build.ram.id == "ram-1x32"
+
+
+def test_slow_ram_rejected_by_default():
+    slow = (named(make_ram, "ram-4800").model_copy(update={"speed_mhz": 4800}), "60")
+    catalog = priced((START.cpu, "200"), (START.gpu, "500"), slow, *BASE)
+    assert Solver(catalog).complete(START).build.ram.id == "ram"
+    assert (
+        Solver(catalog, Requirements(min_ram_speed_mhz={MemoryType.DDR5: 4800}))
+        .complete(START)
+        .build.ram.id
+        == "ram-4800"
+    )
+
+
+def test_sata_ssd_rejected_when_nvme_only():
+    sata = (
+        named(
+            make_storage,
+            "ssd-sata",
+            form_factor=StorageFormFactor.INCH_2_5,
+            interface=StorageInterface.SATA,
+        ),
+        "40",
+    )
+    catalog = priced((START.cpu, "200"), (START.gpu, "500"), sata, *BASE)
+    assert Solver(catalog).complete(START).build.storage[0].id == "ssd"
+    assert Solver(catalog, LOOSE).complete(START).build.storage[0].id == "ssd-sata"
+
+
+@pytest.mark.parametrize(
+    "efficiency, accepted",
+    [
+        (None, False),  # сертификат неизвестен
+        (PsuEfficiency.PLUS, False),  # ниже Bronze
+        (PsuEfficiency.BRONZE, True),  # ровно граница
+        (PsuEfficiency.PLATINUM, True),
+    ],
+)
+def test_psu_efficiency_requirement(efficiency, accepted):
+    psu = make_psu().model_copy(update={"efficiency": efficiency})
+    assert Requirements().accepts(psu) is accepted
+
+
+def test_psu_efficiency_requirement_can_be_disabled():
+    psu = make_psu().model_copy(update={"efficiency": None})
+    assert Requirements(min_psu_efficiency=None).accepts(psu)
