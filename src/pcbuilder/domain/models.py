@@ -93,6 +93,7 @@ class CPU(Component):
     integrated_graphics: bool = False
     includes_cooler: bool = False
     cores: int
+    architecture: str | None = None  # "Zen 4", "Raptor Lake"
     threads: int | None = None  # в датасете нет; «ядра × 2» неверно для Intel 12+
     base_clock_mhz: int | None = None
     boost_clock_mhz: int | None = None

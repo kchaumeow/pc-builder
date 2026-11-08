@@ -189,6 +189,7 @@ def parse_cpu(record: dict) -> CPU:
         memory_types=memory_types,
         tdp_w=record["tdp"],
         cores=record["core_count"],
+        architecture=arch,
         base_clock_mhz=ghz_to_mhz(record.get("core_clock")),
         boost_clock_mhz=ghz_to_mhz(record.get("boost_clock")),
         integrated_graphics=record.get("graphics") is not None,
