@@ -24,7 +24,11 @@ from pcbuilder.sources.docyx import (
 )
 from pcbuilder.sources.seeds import load_cases, load_coolers
 
-DATASET = Path(os.environ.get("DOCYX_PATH", "~/projects/pc-part-dataset")).expanduser() / "data" / "jsonl"
+DATASET = (
+    Path(os.environ.get("DOCYX_PATH", "~/projects/pc-part-dataset")).expanduser()
+    / "data"
+    / "jsonl"
+)
 
 
 def first[T: Component](parts: Iterable[T], condition: Callable[[T], bool]) -> T:
@@ -45,20 +49,45 @@ coolers = load_coolers()
 
 build = Build(
     cpu=first(cpus.values(), lambda c: c.name == "AMD Ryzen 5 7600"),
-    motherboard=first(boards.values(), lambda b: b.chipset == "B650" and b.form_factor == "ATX"),
-    ram=first(memory.values(), lambda r: r.memory_type == MemoryType.DDR5 and r.capacity_gb == 32
-              and r.modules == 2 and r.speed_mhz == 6000),
-    gpu=first(gpus.values(), lambda g: g.chipset == "GeForce RTX 4070" and g.length_mm <= 300),
-    storage=[first(drives.values(), lambda d: d.name == "Samsung 990 Pro" and d.capacity_gb == 2000)],
-    psu=first(psus.values(), lambda p: p.wattage_w == 750 and p.efficiency == "80 Plus Gold"),
+    motherboard=first(
+        boards.values(), lambda b: b.chipset == "B650" and b.form_factor == "ATX"
+    ),
+    ram=first(
+        memory.values(),
+        lambda r: (
+            r.memory_type == MemoryType.DDR5
+            and r.capacity_gb == 32
+            and r.modules == 2
+            and r.speed_mhz == 6000
+        ),
+    ),
+    gpu=first(
+        gpus.values(), lambda g: g.chipset == "GeForce RTX 4070" and g.length_mm <= 300
+    ),
+    storage=[
+        first(
+            drives.values(),
+            lambda d: d.name == "Samsung 990 Pro" and d.capacity_gb == 2000,
+        )
+    ],
+    psu=first(
+        psus.values(), lambda p: p.wattage_w == 750 and p.efficiency == "80 Plus Gold"
+    ),
     case=cases["case-fractal-design-north"],
     cooling=coolers["cooler-thermalright-peerless-assassin-120-se"],
 )
 
 print("Сборка:")
-for label, part in [("CPU", build.cpu), ("Плата", build.motherboard), ("Память", build.ram),
-                    ("Видеокарта", build.gpu), ("Диск", build.storage[0]), ("БП", build.psu),
-                    ("Корпус", build.case), ("Кулер", build.cooling)]:
+for label, part in [
+    ("CPU", build.cpu),
+    ("Плата", build.motherboard),
+    ("Память", build.ram),
+    ("Видеокарта", build.gpu),
+    ("Диск", build.storage[0]),
+    ("БП", build.psu),
+    ("Корпус", build.case),
+    ("Кулер", build.cooling),
+]:
     print(f"  {label:11} {part.name}")
 
 print(f"\nОценка потребления: {estimated_power_w(build)} Вт")

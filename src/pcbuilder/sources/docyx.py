@@ -5,10 +5,10 @@
 лучше не загрузить деталь, чем загрузить с неправильными данными.
 """
 
-from decimal import Decimal
 import json
 import re
 from collections.abc import Callable, Iterator, Mapping
+from decimal import Decimal
 from pathlib import Path
 
 from pcbuilder.domain.models import (
@@ -105,7 +105,9 @@ DDR_VERSIONS = {
 }
 
 
-def memory_id(record: dict, ddr_version: int, speed_mhz: int, module_count: int, module_gb: int) -> str:
+def memory_id(
+    record: dict, ddr_version: int, speed_mhz: int, module_count: int, module_gb: int
+) -> str:
     # Название в датасете — серия и объём, а не товар: под одним именем много комплектов.
     # Поэтому идентичность собираем из характеристик.
     parts = [
@@ -207,10 +209,28 @@ FORM_FACTORS = {
 }
 
 KNOWN_CHIPSETS = {
-    "A620", "B650", "B650E", "X670", "X670E", "B840", "B850", "X870", "X870E",  # AM5
-    "A520", "B550", "X570",                                                    # AM4, 500-я серия
-    "H610", "B660", "H670", "Z690", "B760", "H770", "Z790",                    # LGA1700
-    "H810", "B860", "Z890",                                                    # LGA1851
+    "A620",
+    "B650",
+    "B650E",
+    "X670",
+    "X670E",
+    "B840",
+    "B850",
+    "X870",
+    "X870E",  # AM5
+    "A520",
+    "B550",
+    "X570",  # AM4, 500-я серия
+    "H610",
+    "B660",
+    "H670",
+    "Z690",
+    "B760",
+    "H770",
+    "Z790",  # LGA1700
+    "H810",
+    "B860",
+    "Z890",  # LGA1851
 }
 
 # Сокеты с единственным типом памяти. LGA1700 нет намеренно: там бывают и DDR4, и DDR5.
@@ -247,7 +267,9 @@ def detect_memory_type(name: str, socket: str, chipset: str) -> MemoryType:
     if match is not None:
         by_name = NAME_MEMORY_TYPES[match.group(1)]
         if by_socket is not None and by_name != by_socket:
-            raise ValueError(f"Name says {by_name}, socket {socket} implies {by_socket}: {name}")
+            raise ValueError(
+                f"Name says {by_name}, socket {socket} implies {by_socket}: {name}"
+            )
         return by_name
 
     if by_socket is not None:
@@ -256,7 +278,9 @@ def detect_memory_type(name: str, socket: str, chipset: str) -> MemoryType:
     if socket == "LGA1700" and chipset in LGA1700_UNMARKED_DDR5_CHIPSETS:
         return MemoryType.DDR5
 
-    raise ValueError(f"Cannot determine memory type for {socket}/{chipset} board: {name}")
+    raise ValueError(
+        f"Cannot determine memory type for {socket}/{chipset} board: {name}"
+    )
 
 
 def parse_motherboard(record: dict) -> Motherboard:
@@ -367,6 +391,7 @@ def parse_power_supply(record: dict) -> PowerSupply:
         has_12vhpwr=detect_12vhpwr(name),
         # pcie_8pin и length_mm в датасете нет — остаются None
     )
+
 
 # --- Видеокарты --------------------------------------------------------------------
 
@@ -485,6 +510,7 @@ def parse_gpu(record: dict) -> GPU:
         # power_connectors и recommended_psu_w в датасете нет — остаются None
     )
 
+
 # --- Накопители --------------------------------------------------------------------
 
 # В датасете 2.5 и 3.5 — числа, а M.2 — строки вида "M.2-2280". Все длины M.2 для нас
@@ -552,13 +578,14 @@ def parse_storage(record: dict) -> Storage:
         interface=detect_storage_interface(record),
     )
 
+
 # --- Цены --------------------------------------------------------------------------
 
 SOURCE = "docyx"
 CURRENCY = "USD"  # датасет — снимок американского PCPartPicker
 
 
-def to_price(value: float | int | None) -> Decimal | None:
+def to_price(value: float | None) -> Decimal | None:
     if value is None:
         return None
 
@@ -586,7 +613,10 @@ def load_offers(path: Path, parse: Callable[[dict], Component]) -> dict[str, Off
             part = parse(record)
         except (KeyError, ValueError):
             continue
-        keep_cheaper(offers, Offer(part_id=part.id, source=SOURCE, price=price, currency=CURRENCY))
+        keep_cheaper(
+            offers,
+            Offer(part_id=part.id, source=SOURCE, price=price, currency=CURRENCY),
+        )
     return offers
 
 
@@ -605,5 +635,8 @@ def load_offers_by_name(path: Path, parts: Mapping[str, Component]) -> dict[str,
         if price is None:
             continue
         for part_id in by_name.get(record["name"].lower(), []):
-            keep_cheaper(offers, Offer(part_id=part_id, source=SOURCE, price=price, currency=CURRENCY))
+            keep_cheaper(
+                offers,
+                Offer(part_id=part_id, source=SOURCE, price=price, currency=CURRENCY),
+            )
     return offers

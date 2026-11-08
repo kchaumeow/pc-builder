@@ -35,11 +35,11 @@ from pcbuilder.sources.docyx import (
 
 
 class Category(BaseModel):
-    parse: Callable | None = None              # None — загрузчика пока нет
-    expected_reasons: tuple[str, ...] = ()     # осознанные причины отказа
-    count_fields: tuple[str, ...] = ()         # поля, значения которых посчитать
-    required_fields: tuple[str, ...] = ()      # поля, отсутствие которых важно увидеть
-    top: int = 15                              # сколько самых частых значений показывать
+    parse: Callable | None = None  # None — загрузчика пока нет
+    expected_reasons: tuple[str, ...] = ()  # осознанные причины отказа
+    count_fields: tuple[str, ...] = ()  # поля, значения которых посчитать
+    required_fields: tuple[str, ...] = ()  # поля, отсутствие которых важно увидеть
+    top: int = 15  # сколько самых частых значений показывать
 
 
 CATEGORIES: dict[str, Category] = {
@@ -58,7 +58,10 @@ CATEGORIES: dict[str, Category] = {
     "motherboard": Category(
         parse=parse_motherboard,
         expected_reasons=(
-            "Unsupported socket", "Unknown form factor", "Unknown chipset", "Cannot determine memory type",
+            "Unsupported socket",
+            "Unknown form factor",
+            "Unknown chipset",
+            "Cannot determine memory type",
         ),
         count_fields=("socket", "form_factor"),
     ),
@@ -85,7 +88,9 @@ CATEGORIES: dict[str, Category] = {
     "internal-hard-drive": Category(
         parse=parse_storage,
         expected_reasons=(
-            "Unsupported storage form factor", "Unsupported storage interface", "Unknown storage type",
+            "Unsupported storage form factor",
+            "Unsupported storage interface",
+            "Unknown storage type",
         ),
         count_fields=("type", "form_factor", "interface"),
     ),
@@ -107,17 +112,25 @@ def explore_raw(records: list[dict], category: Category) -> None:
 
 def explore_loader(path: Path, records: list[dict], category: Category) -> None:
     parts, errors = load_parts(path, category.parse)
-    unexpected = [e for e in errors if not any(reason in e for reason in category.expected_reasons)]
+    unexpected = [
+        e
+        for e in errors
+        if not any(reason in e for reason in category.expected_reasons)
+    ]
     repeats = len(records) - len(parts) - len(errors)
 
-    print(f"\n  загрузчик: загружено {len(parts)}, отказов {len(errors)}, повторов {repeats}")
+    print(
+        f"\n  загрузчик: загружено {len(parts)}, отказов {len(errors)}, повторов {repeats}"
+    )
     print(f"  неожиданных отказов: {len(unexpected)}")
     for e in unexpected[:10]:
         print(f"    {e}")
 
 
 def main() -> None:
-    dataset = Path(os.environ.get("DOCYX_PATH", "~/projects/pc-part-dataset")).expanduser()
+    dataset = Path(
+        os.environ.get("DOCYX_PATH", "~/projects/pc-part-dataset")
+    ).expanduser()
     requested = sys.argv[1:] or list(CATEGORIES)
 
     unknown = [name for name in requested if name not in CATEGORIES]

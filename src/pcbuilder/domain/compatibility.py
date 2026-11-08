@@ -121,7 +121,11 @@ def psu_wattage_sufficient(build: Build) -> list[Issue]:
                 f"PSU wattage {psu.wattage_w}W is less than the estimated required power {required_power}W (including headroom)",
             )
         )
-    if gpu and gpu.recommended_psu_w is not None and psu.wattage_w < gpu.recommended_psu_w:
+    if (
+        gpu
+        and gpu.recommended_psu_w is not None
+        and psu.wattage_w < gpu.recommended_psu_w
+    ):
         issues.append(
             _warning(
                 "PSU_BELOW_GPU_RECOMMENDATION",
@@ -136,7 +140,9 @@ def psu_has_gpu_connectors(build: Build) -> list[Issue]:
     if not (build.psu and build.gpu):
         return issues
 
-    if build.gpu.power_connectors is None:  # разъёмы карты неизвестны — проверять нечего
+    if (
+        build.gpu.power_connectors is None
+    ):  # разъёмы карты неизвестны — проверять нечего
         return issues
 
     psu, gpu = build.psu, build.gpu

@@ -58,8 +58,18 @@ def test_cooler_sockets_are_known(cooler: Cooling):
 
 
 def test_seed_with_typo_fails_loudly(tmp_path):
-    bad = {"items": [{"brand": "X", "model": "Y", "supported_motherboard_form_factors": ["ATX"],
-                      "max_gpu_length_mm": 300, "max_cooler_height_mm": 160, "psu_form_factors": ["ATXX"]}]}
+    bad = {
+        "items": [
+            {
+                "brand": "X",
+                "model": "Y",
+                "supported_motherboard_form_factors": ["ATX"],
+                "max_gpu_length_mm": 300,
+                "max_cooler_height_mm": 160,
+                "psu_form_factors": ["ATXX"],
+            }
+        ]
+    }
     path = tmp_path / "cases.json"
     path.write_text(json.dumps(bad))
     with pytest.raises(ValueError, match="запись #0"):

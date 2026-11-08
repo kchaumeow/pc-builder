@@ -3,7 +3,6 @@ from enum import StrEnum
 
 from pydantic import BaseModel, model_validator
 
-
 # --- Справочники ---------------------------------------------------------------
 
 
@@ -143,7 +142,10 @@ class Storage(Component):
 
     @model_validator(mode="after")
     def check_combination(self):
-        if self.interface == StorageInterface.NVME and self.form_factor != StorageFormFactor.M2:
+        if (
+            self.interface == StorageInterface.NVME
+            and self.form_factor != StorageFormFactor.M2
+        ):
             raise ValueError("NVMe бывает только в форм-факторе M.2")
         if self.media == StorageMedia.HDD and self.form_factor == StorageFormFactor.M2:
             raise ValueError("HDD не бывает в форм-факторе M.2")
@@ -202,7 +204,7 @@ class Build(BaseModel):
     case: Case | None = None
     cooling: Cooling | None = None
 
-    
+
 # --- Предложения ---------------------------------------------------------------
 
 

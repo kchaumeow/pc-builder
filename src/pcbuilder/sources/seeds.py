@@ -5,7 +5,6 @@
 не ловим: любая проблема роняет загрузку с понятным сообщением.
 """
 
-import json
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -34,7 +33,9 @@ def load_seed[T: Component](path: Path, model: type[T], prefix: str) -> dict[str
         try:
             part = model.model_validate(data)
         except ValueError as e:
-            raise ValueError(f"{path.name}, запись #{index} ({item.get('brand')} {item.get('model')}): {e}") from e
+            raise ValueError(
+                f"{path.name}, запись #{index} ({item.get('brand')} {item.get('model')}): {e}"
+            ) from e
 
         if part.id in parts:
             raise ValueError(f"{path.name}: повтор {part.id}")

@@ -7,11 +7,15 @@ from pcbuilder.domain.models import ComponentType, Cooling, Offer
 
 
 def cooler(part_id: str, model: str) -> Cooling:
-    return Cooling(id=part_id, brand="Test", model=model, sockets=["AM5"], height_mm=150)
+    return Cooling(
+        id=part_id, brand="Test", model=model, sockets=["AM5"], height_mm=150
+    )
 
 
 def offer(part_id: str, price: str, currency: str = "USD") -> Offer:
-    return Offer(part_id=part_id, source="test", price=Decimal(price), currency=currency)
+    return Offer(
+        part_id=part_id, source="test", price=Decimal(price), currency=currency
+    )
 
 
 PARTS = {
@@ -46,7 +50,7 @@ def test_empty_category():
 
 def test_price():
     catalog = Catalog(PARTS, OFFERS)
-    assert catalog.price(PARTS["c-mid"]) == Decimal("40")
+    assert catalog.price(PARTS["c-mid"]) == Decimal(40)
 
 
 def test_find_by_name_ignores_case():
