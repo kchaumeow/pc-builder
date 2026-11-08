@@ -95,38 +95,77 @@ UNKNOWN_ARCHITECTURE_IPC = 0.85
 
 X3D_GAMING_BONUS = 1.25  # 3D V-Cache: большой кэш заметно ускоряет игры
 
+# Чтобы оценки процессоров и видеокарт можно было сравнивать, обе шкалы приводим к 0–100:
+# у видеокарт 100 — RTX 4090, у процессоров 100 — сырая оценка эталонного процессора.
+CPU_GAMING_REFERENCE = 140.0  # ≈ Ryzen 7 9800X3D
+CPU_MULTICORE_REFERENCE = 98.0  # ≈ 16-ядерный Zen 5
 
-def cpu_performance(cpu: CPU) -> float:
-    """Грубая игровая оценка процессора: архитектура × частота × ядра, бонус за X3D.
 
-    Для игр важны первые ~8 ядер; дальше прирост почти нулевой.
-    """
-    ipc = ARCHITECTURE_IPC.get(cpu.architecture or "", UNKNOWN_ARCHITECTURE_IPC)
-    boost_ghz = (cpu.boost_clock_mhz or cpu.base_clock_mhz or 4000) / 1000
+def _ipc(cpu: CPU) -> float:
+    return ARCHITECTURE_IPC.get(cpu.architecture or "", UNKNOWN_ARCHITECTURE_IPC)
+
+
+def _boost_ghz(cpu: CPU) -> float:
+    return (cpu.boost_clock_mhz or cpu.base_clock_mhz or 4000) / 1000
+
+
+def cpu_gaming_index(cpu: CPU) -> float:
+    """Игровая оценка процессора, 0–100. Для игр важны первые ~8 ядер; дальше прирост почти нулевой."""
     cores_factor = 0.7 + 0.3 * min(cpu.cores, 8) / 8
-    score = ipc * boost_ghz * cores_factor * 20  # ×20 — чтобы шкала была порядка 100
+    raw = _ipc(cpu) * _boost_ghz(cpu) * cores_factor * 20
     if "X3D" in cpu.model:
-        score *= X3D_GAMING_BONUS
-    return round(score, 1)
+        raw *= X3D_GAMING_BONUS
+    return round(100 * raw / CPU_GAMING_REFERENCE, 1)
 
 
-def gpu_performance(gpu: GPU) -> float:
+def cpu_multicore_index(cpu: CPU) -> float:
+    """Оценка для работы (рендер, компиляция), 0–100: здесь важны все ядра."""
+    raw = _ipc(cpu) * _boost_ghz(cpu) * cpu.cores
+    return round(100 * raw / CPU_MULTICORE_REFERENCE, 1)
+
+
+def gpu_index(gpu: GPU) -> float:
+    """Игровая оценка видеокарты, 0–100+ (RTX 4090 = 100)."""
     return GPU_PERFORMANCE.get(gpu.chipset, 0.0)
 
 
-@dataclass(frozen=True)
-class Profile:
-    """Для чего сборка: веса видеокарты и процессора в общей оценке."""
+# --- Профили -----------------------------------------------------------------------
 
-    name: str
-    gpu_weight: float
-    cpu_weight: float
+
+@dataclass(frozen=True)
+class GamingProfile:
+    """Игры: производительность определяет узкое место.
+
+    Кадр сначала готовит процессор, потом рисует видеокарта. Если одна из них медленнее,
+    вторая простаивает — поэтому оценка сборки — это минимум из двух, а не сумма.
+    Следствие: солвер не станет переплачивать за процессор, который видеокарта
+    всё равно не нагрузит, и наоборот.
+    """
+
+    name: str = "игры"
+    # Сколько «видеокарты» способен прокормить процессор с оценкой 100.
+    # 1.2 — топовый игровой процессор полностью нагружает видеокарту уровня 120 (между 4090 и 5090).
+    cpu_feeds_gpu: float = 1.2
 
     def score(self, cpu: CPU, gpu: GPU) -> float:
-        return self.gpu_weight * gpu_performance(
+        return min(gpu_index(gpu), cpu_gaming_index(cpu) * self.cpu_feeds_gpu)
+
+
+@dataclass(frozen=True)
+class WorkstationProfile:
+    """Работа: процессор важнее, видеокарта помогает (ускорение рендера, монтаж)."""
+
+    name: str = "работа"
+    cpu_weight: float = 0.7
+    gpu_weight: float = 0.3
+
+    def score(self, cpu: CPU, gpu: GPU) -> float:
+        return self.cpu_weight * cpu_multicore_index(cpu) + self.gpu_weight * gpu_index(
             gpu
-        ) + self.cpu_weight * cpu_performance(cpu)
+        )
 
 
-GAMING = Profile("игры", gpu_weight=0.8, cpu_weight=0.2)
-WORKSTATION = Profile("работа", gpu_weight=0.3, cpu_weight=0.7)
+Profile = GamingProfile | WorkstationProfile
+
+GAMING = GamingProfile()
+WORKSTATION = WorkstationProfile()

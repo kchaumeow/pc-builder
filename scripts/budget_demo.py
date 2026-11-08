@@ -3,6 +3,7 @@
 Запуск из корня проекта:
     python scripts/budget_demo.py            # несколько бюджетов
     python scripts/budget_demo.py 1500       # один бюджет
+    python scripts/budget_demo.py 1500 --work   # профиль «работа»
 """
 
 import os
@@ -12,23 +13,31 @@ from decimal import Decimal
 from pathlib import Path
 
 from pcbuilder.catalog import load_catalog
-from pcbuilder.domain.models import CPU, GPU, Component
+from pcbuilder.domain.models import Component
 from pcbuilder.recommender.budget import best_build
-from pcbuilder.recommender.scores import GAMING, cpu_performance, gpu_performance
+from pcbuilder.recommender.scores import (
+    GAMING,
+    WORKSTATION,
+    cpu_gaming_index,
+    cpu_multicore_index,
+    gpu_index,
+)
 from pcbuilder.recommender.solver import Requirements
 
 DATASET = Path(os.environ.get("DOCYX_PATH", "~/projects/pc-part-dataset")).expanduser()
-budgets = [Decimal(b) for b in sys.argv[1:]] or [
+args = sys.argv[1:]
+profile = WORKSTATION if "--work" in args else GAMING
+budgets = [Decimal(a) for a in args if a != "--work"] or [
     Decimal(b) for b in ("800", "1200", "2000", "3000")
 ]
 
 catalog = load_catalog(DATASET)
 requirements = Requirements(min_ram_gb=32, min_storage_gb=1000)
-print(f"Профиль: {GAMING.name}. Требования: {requirements.describe()}\n")
+print(f"Профиль: {profile.name}. Требования: {requirements.describe()}\n")
 
 for budget in budgets:
     started = time.perf_counter()
-    result = best_build(catalog, budget, GAMING, requirements)
+    result = best_build(catalog, budget, profile, requirements)
     elapsed = time.perf_counter() - started
 
     print(f"=== Бюджет {budget} {catalog.currency}")
@@ -51,10 +60,10 @@ for budget in budgets:
         if part is None:
             continue
         extra = ""
-        if isinstance(part, CPU):
-            extra = f"оценка {cpu_performance(part)}"
-        elif isinstance(part, GPU):
-            extra = f"{part.chipset}, оценка {gpu_performance(part)}"
+        if part is build.cpu:
+            extra = f"игры {cpu_gaming_index(build.cpu)}, работа {cpu_multicore_index(build.cpu)}"
+        elif part is build.gpu:
+            extra = f"{build.gpu.chipset}, {gpu_index(build.gpu)}"
         print(f"  {label:11} {part.name:42} {extra:32} {catalog.price(part):>8}")
     print(f"  {'Итого':87} {result.solution.total:>8}")
     print(

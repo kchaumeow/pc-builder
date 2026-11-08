@@ -116,9 +116,7 @@ class Requirements:
             return False
         if self.ssd_only and drive.media != StorageMedia.SSD:
             return False
-        if self.nvme_only and drive.interface != StorageInterface.NVME:
-            return False
-        return True
+        return not (self.nvme_only and drive.interface != StorageInterface.NVME)
 
     def _accepts_psu(self, psu: PowerSupply) -> bool:
         if self.min_psu_efficiency is None:

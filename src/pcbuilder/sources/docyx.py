@@ -44,17 +44,13 @@ def read_jsonl(path: Path) -> Iterator[dict]:
 
 def load_parts[T: Component](
     path: Path,
-    parse: Callable[[dict], T] | None,
+    parse: Callable[[dict], T],
 ) -> tuple[dict[str, T], list[str]]:
     """Загружает файл целиком. Возвращает (детали по id, список отказов с причинами).
 
     Ловим только KeyError (нет обязательного поля) и ValueError (наш осознанный отказ
     или ошибка валидации pydantic). Всё остальное — баг в коде, пусть падает громко.
     """
-    if parse is None:
-        print(f"Загрузчик для {path.name} ещё не написан — пропускаем")
-        return {}, []
-
     parts: dict[str, T] = {}
     errors: list[str] = []
 
