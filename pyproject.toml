@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 dependencies = ["pydantic>=2.7", "fastapi>=0.162", "uvicorn>=0.54"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.17", "pre-commit>=4.7"]
+dev = ["pytest>=8", "ruff>=0.17", "pre-commit>=4.7", "httpx>=0.28"]
 
 [build-system]
 requires = ["hatchling"]
