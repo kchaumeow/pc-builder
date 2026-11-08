@@ -479,7 +479,7 @@
           body: JSON.stringify(body),
         });
       } catch {
-        showMessage("Сервер не отвечает. Проверьте, что он запущен: uvicorn pcbuilder.api.app:app", "error");
+        showMessage("Сервер не отвечает", "error");
         return;
       }
       const isJson = (response.headers.get("Content-Type") || "").includes("application/json");
