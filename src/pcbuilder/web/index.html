@@ -1,21 +1,21 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>pcbuilder — сборка ПК под бюджет</title>
+  <title>pcbuilder — PC builder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Палитра печатной платы: маска, шелкография, золото контактных площадок */
+    /* Circuit board palette: solder mask, silkscreen, gold contact pads */
     :root {
-      --mask: #0f3d2e;        /* фон — зелёная паяльная маска */
-      --mask-raised: #14503c; /* поля ввода и строки */
-      --trace: #2f7a5c;       /* линии и рамки — дорожки */
-      --silk: #eef2e6;        /* основной текст — шелкография */
-      --silk-muted: #a9c4b5;  /* второстепенный текст */
-      --pad: #d9ad3c;         /* акцент — золото площадок */
+      --mask: #0f3d2e;        /* background — green solder mask */
+      --mask-raised: #14503c; /* inputs and rows */
+      --trace: #2f7a5c;       /* lines and borders — traces */
+      --silk: #eef2e6;        /* body text — silkscreen */
+      --silk-muted: #a9c4b5;  /* secondary text */
+      --pad: #d9ad3c;         /* accent — pad gold */
       --warn: #f0a35e;
       --error: #ff8a7a;
 
@@ -46,7 +46,7 @@
       outline-offset: 3px;
     }
 
-    /* --- Шапка --- */
+    /* --- Header --- */
     .brand {
       font: 600 15px/1 var(--display);
       color: var(--silk-muted);
@@ -65,7 +65,7 @@
       margin: 0 0 40px;
     }
 
-    /* --- Форма --- */
+    /* --- Form --- */
     form {
       display: grid;
       grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(130px, 1fr));
@@ -165,7 +165,7 @@
 
     .hint { color: var(--silk-muted); font-size: 15px; margin: 0; }
 
-    /* --- Результат --- */
+    /* --- Result --- */
     #result { padding-top: 36px; transition: opacity 0.2s; }
     #result[aria-busy="true"] { opacity: 0.45; }
 
@@ -189,7 +189,7 @@
     }
     .total span { color: var(--silk-muted); }
 
-    /* Полоса бюджета: каждая деталь — участок, длина пропорциональна цене */
+    /* Budget rail: one segment per part, length proportional to price */
     .rail {
       display: flex;
       height: 44px;
@@ -229,7 +229,7 @@
       background: repeating-linear-gradient(135deg, transparent 0 3px, var(--trace) 3px 4px);
     }
 
-    /* Список деталей */
+    /* Parts list */
     .parts { width: 100%; border-collapse: collapse; }
     .parts th {
       text-align: left;
@@ -273,8 +273,134 @@
       max-width: 70ch;
     }
 
+    /* --- Tabs --- */
+    .tabs {
+      display: flex;
+      gap: 28px;
+      border-bottom: 1px solid var(--trace);
+      margin: 0 0 32px;
+    }
+    .tabs button {
+      background: none;
+      color: var(--silk-muted);
+      border-radius: 0;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -1px;
+      padding: 0 0 12px;
+      font: 600 20px/1.2 var(--display);
+    }
+    .tabs button:hover { background: none; color: var(--silk); }
+    .tabs button[aria-selected="true"] { color: var(--silk); border-bottom-color: var(--pad); }
+
+    /* Secondary buttons */
+    .btn-secondary {
+      background: none;
+      color: var(--silk);
+      border: 1px solid var(--trace);
+      font: 600 16px/1 var(--display);
+      padding: 14px 20px;
+    }
+    .btn-secondary:hover { background: var(--mask-raised); }
+    .btn-link {
+      background: none;
+      color: var(--pad);
+      padding: 4px 0;
+      font: 500 15px/1.2 var(--body);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .btn-link:hover { background: none; color: #e8c25a; }
+
+    /* --- Custom build --- */
+    .custom-summary { margin-bottom: 24px; }
+    .custom-summary .total { margin-bottom: 6px; }
+    .status { margin: 0; color: var(--silk-muted); }
+    .status.ready { color: var(--pad); }
+    .status.error { color: var(--error); }
+
+    .slots { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--trace); }
+    .slot {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 4px 16px;
+      align-items: start;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--mask-raised);
+    }
+    .slot-label { color: var(--silk-muted); padding-top: 2px; }
+    .slot-label small { display: block; font-size: 13px; }
+    .slot-items { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .slot-item { display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; }
+    .slot-item .name { font-weight: 600; }
+    .slot-item .details { color: var(--silk-muted); font-size: 15px; }
+    .slot-item .price {
+      grid-row: 1;
+      grid-column: 2;
+      text-align: right;
+      font: 600 17px/1.5 var(--display);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .slot-empty { color: var(--silk-muted); padding-top: 2px; }
+    .slot-actions { display: flex; gap: 16px; justify-content: flex-end; flex-wrap: wrap; }
+    .slot-items > .slot-actions { margin-top: -4px; }
+
+    .picker {
+      grid-column: 1 / -1;
+      margin-top: 10px;
+      padding: 16px;
+      background: var(--mask-raised);
+      border: 1px solid var(--trace);
+      border-radius: 4px;
+    }
+    .picker-search {
+      width: 100%;
+      background: var(--mask);
+      border: 1px solid var(--trace);
+      border-radius: 4px;
+      color: var(--silk);
+      font: 400 17px/1.2 var(--body);
+      padding: 12px;
+    }
+    .picker-search::placeholder { color: var(--silk-muted); }
+    .candidates { list-style: none; margin: 12px 0 0; padding: 0; max-height: 420px; overflow-y: auto; }
+    .candidate {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 2px 16px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--mask);
+    }
+    .candidate .name { font-weight: 600; }
+    .candidate .details { display: block; color: var(--silk-muted); font-size: 15px; }
+    .candidate .price { font: 600 16px/1 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .candidate .problems { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--warn); }
+    .candidate.incompatible .name, .candidate.incompatible .price { opacity: 0.6; }
+    .candidate.incompatible .problems { color: var(--error); }
+    .candidate button { padding: 10px 16px; font-size: 15px; }
+    .picker-footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 16px;
+      margin-top: 12px;
+      color: var(--silk-muted);
+      font-size: 15px;
+    }
+    .picker-footer .btn-link:last-child { margin-left: auto; }
+
+    .custom-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 20px; margin-top: 24px; }
+    .custom-actions .hint { flex-basis: 100%; }
+    .from-budget { margin-top: 24px; }
+
     @media (max-width: 760px) {
       main { padding-top: 32px; }
+      .slot { grid-template-columns: 1fr; }
+      .slot-label { font-size: 14px; }
+      .slot-label small { display: inline; margin-left: 6px; }
+      .candidate { grid-template-columns: 1fr auto; }
+      .candidate button { grid-column: 1 / -1; justify-self: start; }
       form { grid-template-columns: 1fr 1fr; }
       .field-budget, .field-profile { grid-column: 1 / -1; }
       .parts thead { display: none; }
@@ -292,12 +418,18 @@
 <body>
 <main>
   <p class="brand">pcbuilder</p>
-  <h1>Сборка ПК под бюджет</h1>
-  <p class="lead">Укажите сумму и для чего нужен компьютер. Программа переберёт совместимые комплектующие и соберёт ту конфигурацию, которая даст больше всего производительности за эти деньги.<span id="catalog-size"></span></p>
+  <h1>PC builder</h1>
+  <p class="lead">Get a build that fits your budget, or put together your own part by part — the app shows what works with what you’ve already picked and checks compatibility.<span id="catalog-size"></span></p>
 
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-budget" aria-controls="panel-budget" aria-selected="true">Budget build</button>
+    <button type="button" role="tab" id="tab-custom" aria-controls="panel-custom" aria-selected="false" tabindex="-1">Custom build</button>
+  </div>
+
+  <section id="panel-budget" role="tabpanel" aria-labelledby="tab-budget">
   <form id="build-form">
     <div class="field field-budget">
-      <label for="budget">Бюджет</label>
+      <label for="budget">Budget</label>
       <div class="budget-input">
         <input id="budget" name="budget" type="number" inputmode="numeric" min="300" max="100000" step="1" value="1200" required>
         <span id="currency">$</span>
@@ -305,66 +437,85 @@
     </div>
 
     <fieldset class="field field-profile">
-      <legend>Для чего</legend>
+      <legend>Use</legend>
       <div class="segmented">
         <input type="radio" name="profile" id="profile-gaming" value="gaming" checked>
-        <label for="profile-gaming">Игры</label>
+        <label for="profile-gaming">Gaming</label>
         <input type="radio" name="profile" id="profile-work" value="work">
-        <label for="profile-work">Работа</label>
+        <label for="profile-work">Work</label>
       </div>
     </fieldset>
 
     <div class="field">
-      <label for="ram">Память не меньше</label>
+      <label for="ram">Min. memory</label>
       <select id="ram" name="min_ram_gb">
-        <option value="16">16 ГБ</option>
-        <option value="32" selected>32 ГБ</option>
-        <option value="64">64 ГБ</option>
+        <option value="16">16 GB</option>
+        <option value="32" selected>32 GB</option>
+        <option value="64">64 GB</option>
       </select>
     </div>
 
     <div class="field">
-      <label for="storage">SSD не меньше</label>
+      <label for="storage">Min. SSD</label>
       <select id="storage" name="min_storage_gb">
-        <option value="500">500 ГБ</option>
-        <option value="1000" selected>1 ТБ</option>
-        <option value="2000">2 ТБ</option>
+        <option value="500">500 GB</option>
+        <option value="1000" selected>1 TB</option>
+        <option value="2000">2 TB</option>
       </select>
     </div>
 
     <div class="actions">
-      <button type="submit" id="submit">Подобрать сборку</button>
-      <p class="hint">Для игр важнее видеокарта, для работы — многоядерный процессор.</p>
+      <button type="submit" id="submit">Find a build</button>
+      <p class="hint">Gaming leans on the graphics card; work leans on a multi-core CPU.</p>
     </div>
   </form>
 
   <section id="result" aria-live="polite">
-    <p class="empty">Здесь появится сборка: список деталей, цена каждой и проверка совместимости.</p>
+    <p class="empty">Your build will appear here: the parts, the price of each, and a compatibility check.</p>
+  </section>
+  </section>
+
+  <section id="panel-custom" role="tabpanel" aria-labelledby="tab-custom" hidden>
+    <div class="custom-summary" aria-live="polite">
+      <div class="total"><strong id="custom-total">$0</strong></div>
+      <p class="status" id="custom-status"></p>
+    </div>
+    <ol class="slots" id="slots"></ol>
+    <div class="checks" id="custom-checks"></div>
+    <div class="custom-actions">
+      <button type="button" id="complete">Complete the rest</button>
+      <button type="button" class="btn-secondary" id="reset">Clear</button>
+      <p class="hint" id="complete-hint">Missing parts are filled with the cheapest compatible options, using the memory and SSD minimums from the Budget build tab. If your CPU has no integrated graphics, pick a graphics card yourself.</p>
+    </div>
   </section>
 
   <footer>
-    Цены — снимок американского PCPartPicker в долларах, не текущие предложения магазинов.
-    Оценки производительности приблизительные. Источник данных и ограничения описаны в
-    <a href="https://github.com/kchaumeow/pc-builder#данные-и-ограничения">README проекта</a>.
+    Prices are a snapshot of US PCPartPicker listings in dollars, not current store offers.
+    Performance scores are approximate. The data source and limitations are described in the
+    <a href="https://github.com/kchaumeow/pc-builder#data-and-limitations">project README</a>.
   </footer>
 </main>
 
 <script>
-  // Цвет участка полосы бюджета для каждой категории. Соседние участки (в порядке
-  // деталей сборки) должны заметно отличаться — иначе их не сопоставить с легендой.
+  // Budget rail segment color per category. Adjacent segments (in build part order)
+  // must be clearly distinct, or they can't be matched to the legend.
   const COLORS = {
     cpu: "#c8794a", gpu: "#d9ad3c", motherboard: "#6fb594", ram: "#b5e0cb",
     storage: "#3f8f6f", psu: "#eef2e6", case: "#86a597", cooling: "#9cc4e4",
   };
-  const SEVERITY_LABELS = { INFO: "Заметка", WARNING: "Предупреждение", ERROR: "Ошибка" };
+  const SEVERITY_LABELS = { INFO: "Note", WARNING: "Warning", ERROR: "Error" };
 
   const form = document.getElementById("build-form");
   const result = document.getElementById("result");
   const submit = document.getElementById("submit");
 
-  const money = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
-  const moneyExact = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+  const moneyExact = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const currencySign = (code) => (code === "USD" ? "$" : code);
+  // A symbol sticks to the number ("$1,096"); a code gets a space ("EUR 1,096")
+  const formatMoney = (amount, sign, format = money) =>
+    sign.length === 1 ? `${sign}${format.format(amount)}` : `${sign} ${format.format(amount)}`;
+  const plural = (count, one, many) => `${money.format(count)} ${count === 1 ? one : many}`;
   const percent = (part, whole) => {
     const share = Math.round((part / whole) * 100);
     return share === 0 ? "<1%" : `${share}%`;
@@ -375,10 +526,10 @@
     .then((catalog) => {
       if (catalog.currency) document.getElementById("currency").textContent = currencySign(catalog.currency);
       const count = Object.values(catalog.categories).reduce((a, b) => a + b, 0);
-      document.getElementById("catalog-size").textContent = ` В каталоге ${money.format(count)} деталей с ценами.`;
+      document.getElementById("catalog-size").textContent = ` The catalog has ${plural(count, "priced part", "priced parts")}.`;
     });
 
-  // Текст из данных вставляем только через textContent — никакого innerHTML с чужими строками
+  // Data text goes in only via textContent — never innerHTML with external strings
   function el(tag, props = {}, children = []) {
     const node = document.createElement(tag);
     Object.assign(node, props);
@@ -398,15 +549,15 @@
     const currency = currencySign(build.currency);
 
     const totalLine = el("div", { className: "total" }, [
-      el("strong", {}, `${money.format(total)} ${currency}`),
-      el("span", {}, `из ${money.format(budget)} ${currency}, остаётся ${money.format(budget - total)} ${currency}`),
+      el("strong", {}, formatMoney(total, currency)),
+      el("span", {}, `of ${formatMoney(budget, currency)}, ${formatMoney(budget - total, currency)} left`),
     ]);
 
-    // Полоса бюджета
+    // Budget rail
     const rail = el("div", { className: "rail", role: "img",
-      ariaLabel: "Распределение бюджета по деталям" });
+      ariaLabel: "Budget breakdown by part" });
     build.parts.forEach((part, i) => {
-      const segment = el("div", { className: "rail-segment", title: `${part.label}: ${moneyExact.format(Number(part.price))} ${currency}` });
+      const segment = el("div", { className: "rail-segment", title: `${part.label}: ${formatMoney(Number(part.price), currency, moneyExact)}` });
       segment.style.flexGrow = Number(part.price);
       segment.style.background = COLORS[part.category] || "#cfe3d6";
       segment.style.animationDelay = `${i * 40}ms`;
@@ -414,7 +565,7 @@
     });
     const left = budget - total;
     if (left > 0) {
-      const leftover = el("div", { className: "rail-left", title: `Остаток: ${money.format(left)} ${currency}` });
+      const leftover = el("div", { className: "rail-left", title: `Left over: ${formatMoney(left, currency)}` });
       leftover.style.flexGrow = left;
       rail.append(leftover);
     }
@@ -425,37 +576,369 @@
       return el("li", {}, [swatch, `${part.label} ${percent(Number(part.price), budget)}`]);
     }));
     if (left > 0) {
-      legend.append(el("li", {}, [el("span", { className: "swatch swatch-left" }), `Остаток ${percent(left, budget)}`]));
+      legend.append(el("li", {}, [el("span", { className: "swatch swatch-left" }), `Left over ${percent(left, budget)}`]));
     }
 
-    // Список деталей
+    // Parts list
     const rows = build.parts.map((part) => el("tr", {}, [
       el("td", { className: "category" }, part.label),
       el("td", {}, [el("span", { className: "name" }, part.name), el("span", { className: "details" }, part.details)]),
-      el("td", { className: "price" }, `${moneyExact.format(Number(part.price))} ${currency}`),
+      el("td", { className: "price" }, formatMoney(Number(part.price), currency, moneyExact)),
     ]));
     const table = el("table", { className: "parts" }, [
-      el("thead", {}, el("tr", {}, [el("th", {}, "Деталь"), el("th", {}, "Модель"), el("th", { className: "price" }, "Цена")])),
+      el("thead", {}, el("tr", {}, [el("th", {}, "Part"), el("th", {}, "Model"), el("th", { className: "price" }, "Price")])),
       el("tbody", {}, rows),
     ]);
 
-    // Проверка совместимости
-    const checks = el("div", { className: "checks" }, el("h2", {}, "Совместимость"));
-    if (build.issues.length === 0) {
-      checks.append(el("p", { className: "ok" }, "Все детали совместимы, замечаний нет."));
-    } else {
-      checks.append(el("ul", {}, build.issues.map((issue) =>
-        el("li", { className: `sev-${issue.severity}` }, [
-          el("span", { className: "sev-label" }, `${SEVERITY_LABELS[issue.severity] || issue.severity}: `),
-          issue.message,
-        ]))));
-    }
+    const checks = el("div", { className: "checks" });
+    renderIssues(checks, build.issues, "All parts are compatible, no issues.");
 
-    const requirements = el("p", { className: "hint" }, `Требования: ${build.requirements}.`);
+    const requirements = el("p", { className: "hint" }, `Requirements: ${build.requirements}.`);
     requirements.style.marginTop = "20px";
 
-    result.replaceChildren(totalLine, rail, legend, table, checks, requirements);
+    const edit = el("button", { type: "button", className: "btn-secondary from-budget" }, "Edit parts in Custom build");
+    edit.addEventListener("click", () => {
+      custom.ids = build.parts.map((part) => part.id);
+      selectTab("custom");
+      refreshCustom();
+    });
+
+    result.replaceChildren(totalLine, rail, legend, table, checks, requirements, edit);
   }
+
+  function renderIssues(container, issues, okText) {
+    container.replaceChildren(el("h2", {}, "Compatibility"));
+    if (issues.length === 0) {
+      container.append(el("p", { className: "ok" }, okText));
+      return;
+    }
+    container.append(el("ul", {}, issues.map((issue) =>
+      el("li", { className: `sev-${issue.severity}` }, [
+        el("span", { className: "sev-label" }, `${SEVERITY_LABELS[issue.severity] || issue.severity}: `),
+        issue.message,
+      ]))));
+  }
+
+  // POST JSON. A network failure throws; an error response gives ok: false plus detail if the server sent one
+  async function postJson(path, body) {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const isJson = (response.headers.get("Content-Type") || "").includes("application/json");
+    const payload = isJson ? await response.json() : null;
+    return { ok: response.ok, status: response.status, payload };
+  }
+
+  function errorText({ status, payload }) {
+    return typeof payload?.detail === "string" ? payload.detail : `Server error (${status}). See the uvicorn log for details.`;
+  }
+
+  // --- Tabs -------------------------------------------------------------------
+
+  const TABS = ["budget", "custom"];
+
+  function selectTab(name) {
+    for (const tab of TABS) {
+      const selected = tab === name;
+      const button = document.getElementById(`tab-${tab}`);
+      button.setAttribute("aria-selected", String(selected));
+      button.tabIndex = selected ? 0 : -1;
+      document.getElementById(`panel-${tab}`).hidden = !selected;
+    }
+    syncUrl();
+  }
+
+  // The custom build lives in the URL (#build=id1,id2): it survives a reload and can be shared as a link
+  function syncUrl() {
+    const onCustom = !document.getElementById("panel-custom").hidden;
+    const hash = onCustom ? `#build=${custom.ids.map(encodeURIComponent).join(",")}` : "";
+    history.replaceState(null, "", location.pathname + location.search + hash);
+  }
+
+  for (const tab of TABS) {
+    const button = document.getElementById(`tab-${tab}`);
+    button.addEventListener("click", () => selectTab(tab));
+    button.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const next = TABS[(TABS.indexOf(tab) + (event.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
+      selectTab(next);
+      document.getElementById(`tab-${next}`).focus();
+    });
+  }
+
+  // --- Custom build -----------------------------------------------------------
+  // A build is a list of part ids; the server re-checks it after every change.
+
+  const CATEGORIES = [
+    { key: "cpu", label: "CPU" },
+    { key: "gpu", label: "Graphics card", note: "not needed with integrated graphics" },
+    { key: "motherboard", label: "Motherboard" },
+    { key: "ram", label: "Memory" },
+    { key: "storage", label: "Storage", multiple: true },
+    { key: "psu", label: "Power supply" },
+    { key: "case", label: "Case" },
+    { key: "cooling", label: "CPU cooler", note: "not needed if bundled with the CPU" },
+  ];
+  const LABELS = Object.fromEntries(CATEGORIES.map((c) => [c.key, c.label]));
+
+  const custom = {
+    ids: [],
+    view: null,     // last /api/builds/check response
+    picker: null,   // { category, replaceId, query, includeIncompatible }
+    error: null,
+  };
+  const slots = document.getElementById("slots");
+  const customPanel = document.getElementById("panel-custom");
+  const completeButton = document.getElementById("complete");
+
+  async function refreshCustom() {
+    syncUrl();
+    customPanel.setAttribute("aria-busy", "true");
+    try {
+      const reply = await postJson("/api/builds/check", { part_ids: custom.ids });
+      custom.error = reply.ok ? null : errorText(reply);
+      if (reply.ok) custom.view = reply.payload;
+    } catch {
+      custom.error = "The server is not responding";
+    } finally {
+      customPanel.removeAttribute("aria-busy");
+    }
+    renderCustom();
+  }
+
+  // Drops one occurrence of the id: two identical drives are two entries in the list
+  function withoutOne(ids, id) {
+    const index = ids.indexOf(id);
+    return index === -1 ? ids : ids.toSpliced(index, 1);
+  }
+
+  function setPart(category, partId, replaceId) {
+    let ids;
+    if (CATEGORIES.find((c) => c.key === category).multiple) {
+      // Storage drives stack; replacing removes only the one being replaced
+      ids = replaceId ? withoutOne(custom.ids, replaceId) : custom.ids;
+    } else {
+      const sameCategory = new Set((custom.view?.parts ?? []).filter((p) => p.category === category).map((p) => p.id));
+      ids = custom.ids.filter((id) => !sameCategory.has(id));
+    }
+    custom.ids = [...ids, partId];
+    custom.picker = null;
+    refreshCustom();
+  }
+
+  function removePart(partId) {
+    custom.ids = withoutOne(custom.ids, partId);
+    custom.picker = null;
+    refreshCustom();
+  }
+
+  function openPicker(category, replaceId = null) {
+    custom.picker = { category, replaceId, query: "", includeIncompatible: false };
+    renderCustom();
+  }
+
+  function renderCustom() {
+    const view = custom.view;
+    const currency = currencySign(view?.currency || "USD");
+    const parts = view?.parts ?? [];
+
+    document.getElementById("custom-total").textContent = formatMoney(Number(view?.total ?? 0), currency);
+    const status = document.getElementById("custom-status");
+    status.className = "status";
+    if (custom.error) {
+      status.className = "status error";
+      status.textContent = custom.error;
+    } else if (parts.length === 0) {
+      status.textContent = "Start with the CPU: the motherboard and memory depend on it, so the list of matching parts narrows right away.";
+    } else if (view.complete) {
+      status.className = "status ready";
+      status.textContent = "Build complete: no parts missing, no compatibility errors.";
+    } else if (view.missing.length > 0) {
+      status.textContent = `Missing: ${view.missing.map((key) => LABELS[key]).join(", ")}.`;
+    } else {
+      status.textContent = "All parts are chosen, but there are compatibility errors — see below.";
+    }
+
+    slots.replaceChildren(...CATEGORIES.map((category) => renderSlot(category, parts, currency)));
+
+    const checks = document.getElementById("custom-checks");
+    if (parts.length === 0) {
+      checks.replaceChildren();
+    } else {
+      renderIssues(checks, view.issues, "The chosen parts are compatible with each other.");
+    }
+
+    completeButton.disabled = parts.length === 0 || view.missing.length === 0;
+    // An id from an old link may no longer match a part — such a build can still be cleared
+    document.getElementById("reset").disabled = custom.ids.length === 0;
+
+    if (custom.picker) {
+      document.getElementById("picker-search")?.focus();
+      loadCandidates();
+    }
+  }
+
+  function renderSlot(category, parts, currency) {
+    const chosen = parts.filter((p) => p.category === category.key);
+    const label = el("div", { className: "slot-label" }, [category.label]);
+    if (category.note && chosen.length === 0) label.append(el("small", {}, category.note));
+
+    const items = el("div", { className: "slot-items" });
+    for (const part of chosen) {
+      const item = el("div", { className: "slot-item" }, [
+        el("span", { className: "name" }, part.name),
+        el("span", { className: "price" }, formatMoney(Number(part.price), currency, moneyExact)),
+        el("span", { className: "details" }, part.details),
+      ]);
+      const actions = el("div", { className: "slot-actions" });
+      const replace = el("button", { type: "button", className: "btn-link" }, "Replace");
+      replace.addEventListener("click", () => openPicker(category.key, part.id));
+      const remove = el("button", { type: "button", className: "btn-link", ariaLabel: `Remove ${part.name}` }, "Remove");
+      remove.addEventListener("click", () => removePart(part.id));
+      actions.append(replace, remove);
+      item.append(actions);
+      items.append(item);
+    }
+
+    if (chosen.length === 0 || category.multiple) {
+      const choose = el("button", { type: "button", className: "btn-link" }, chosen.length === 0 ? "Choose" : "Add another");
+      choose.addEventListener("click", () => openPicker(category.key));
+      const actions = el("div", { className: "slot-actions" }, choose);
+      items.append(chosen.length === 0
+        ? el("div", { className: "slot-item" }, [el("span", { className: "slot-empty" }, "not chosen"), actions])
+        : actions);
+    }
+
+    const slot = el("li", { className: "slot" }, [label, items]);
+    if (custom.picker?.category === category.key) slot.append(renderPicker(category));
+    return slot;
+  }
+
+  function renderPicker(category) {
+    const picker = custom.picker;
+    const search = el("input", {
+      type: "search", id: "picker-search", className: "picker-search", value: picker.query,
+      placeholder: "Search by name", ariaLabel: `Search: ${category.label}`,
+    });
+    let timer;
+    search.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { picker.query = search.value; loadCandidates(); }, 200);
+    });
+    search.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") { custom.picker = null; renderCustom(); }
+    });
+    return el("div", { className: "picker" }, [
+      search,
+      el("ul", { className: "candidates", id: "candidates", ariaLabel: "Matching parts" }),
+      el("div", { className: "picker-footer", id: "picker-footer" }),
+    ]);
+  }
+
+  let candidatesRequest = 0;
+  async function loadCandidates() {
+    const picker = custom.picker;
+    const request = ++candidatesRequest;
+    let reply;
+    try {
+      reply = await postJson("/api/parts/search", {
+        category: picker.category,
+        // When replacing, the candidate is checked in place of the old part, so drop the old one
+        part_ids: picker.replaceId ? withoutOne(custom.ids, picker.replaceId) : custom.ids,
+        query: picker.query,
+        include_incompatible: picker.includeIncompatible,
+        limit: 50,
+      });
+    } catch {
+      reply = { ok: false, status: 0, payload: { detail: "The server is not responding" } };
+    }
+    if (request !== candidatesRequest || custom.picker !== picker) return; // a stale response arrived
+    const list = document.getElementById("candidates");
+    const footer = document.getElementById("picker-footer");
+    if (!reply.ok) {
+      list.replaceChildren(el("li", { className: "error" }, errorText(reply)));
+      return;
+    }
+
+    const { matched, compatible, parts } = reply.payload;
+    const currency = currencySign(custom.view?.currency || "USD");
+    list.replaceChildren(...parts.map((part) => {
+      const row = el("li", { className: part.compatible ? "candidate" : "candidate incompatible" }, [
+        el("div", {}, [el("span", { className: "name" }, part.name), el("span", { className: "details" }, part.details)]),
+        el("span", { className: "price" }, formatMoney(Number(part.price), currency, moneyExact)),
+      ]);
+      if (part.compatible) {
+        const add = el("button", { type: "button", ariaLabel: `Choose ${part.name}` }, "Choose");
+        add.addEventListener("click", () => setPart(picker.category, part.id, picker.replaceId));
+        row.append(add);
+      } else {
+        row.append(el("span"));
+      }
+      if (part.problems.length > 0) row.append(el("p", { className: "problems" }, part.problems.join(" ")));
+      return row;
+    }));
+    if (parts.length === 0) {
+      list.replaceChildren(el("li", { className: "slot-empty" },
+        matched === 0 ? "Nothing found." : "Nothing is compatible with the chosen parts."));
+    }
+
+    const incompatible = matched - compatible;
+    const summary = matched === compatible
+      ? `${plural(matched, "match", "matches")}, all compatible, cheapest first.`
+      : `${money.format(compatible)} of ${money.format(matched)} ${compatible === 1 ? "fits" : "fit"}, cheapest first.`;
+    // With nothing found the list already says so — a "0 matches" summary would only repeat it
+    footer.replaceChildren(matched === 0 ? "" : summary);
+    if (incompatible > 0) {
+      const toggle = el("button", { type: "button", className: "btn-link" },
+        picker.includeIncompatible ? "Hide incompatible" : `Show incompatible (${money.format(incompatible)})`);
+      toggle.addEventListener("click", () => { picker.includeIncompatible = !picker.includeIncompatible; loadCandidates(); });
+      footer.append(toggle);
+    }
+    const close = el("button", { type: "button", className: "btn-link" }, "Close");
+    close.addEventListener("click", () => { custom.picker = null; renderCustom(); });
+    footer.append(close);
+  }
+
+  completeButton.addEventListener("click", async () => {
+    completeButton.disabled = true;
+    completeButton.textContent = "Completing…";
+    try {
+      const reply = await postJson("/api/builds/complete", {
+        part_ids: custom.ids,
+        min_ram_gb: Number(document.getElementById("ram").value),
+        min_storage_gb: Number(document.getElementById("storage").value),
+      });
+      if (reply.ok) {
+        custom.view = reply.payload;
+        custom.ids = reply.payload.parts.map((part) => part.id);
+        custom.error = null;
+        syncUrl();
+      } else {
+        custom.error = errorText(reply);
+      }
+    } catch {
+      custom.error = "The server is not responding";
+    } finally {
+      completeButton.textContent = "Complete the rest";
+    }
+    custom.picker = null;
+    renderCustom();
+  });
+
+  document.getElementById("reset").addEventListener("click", () => {
+    custom.ids = [];
+    custom.picker = null;
+    refreshCustom();
+  });
+
+  const fromUrl = location.hash.match(/^#build=?(.*)$/);
+  if (fromUrl) {
+    custom.ids = fromUrl[1] ? fromUrl[1].split(",").map(decodeURIComponent) : [];
+    selectTab("custom");
+  }
+  refreshCustom();
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -468,7 +951,7 @@
     };
 
     submit.disabled = true;
-    submit.textContent = "Подбираю…";
+    submit.textContent = "Finding…";
     result.setAttribute("aria-busy", "true");
     try {
       let response;
@@ -479,7 +962,7 @@
           body: JSON.stringify(body),
         });
       } catch {
-        showMessage("Сервер не отвечает", "error");
+        showMessage("The server is not responding", "error");
         return;
       }
       const isJson = (response.headers.get("Content-Type") || "").includes("application/json");
@@ -487,16 +970,16 @@
       if (response.ok) {
         render(payload);
       } else if (response.status === 422) {
-        showMessage("Бюджет должен быть числом от 300 до 100 000.", "error");
+        showMessage("Budget must be a number from 300 to 100,000.", "error");
       } else if (response.status === 404 && payload?.detail) {
         showMessage(payload.detail, "error");
       } else {
-        showMessage(`Ошибка сервера (${response.status}). Подробности — в логе uvicorn.`, "error");
+        showMessage(`Server error (${response.status}). See the uvicorn log for details.`, "error");
       }
     } finally {
       result.removeAttribute("aria-busy");
       submit.disabled = false;
-      submit.textContent = "Подобрать сборку";
+      submit.textContent = "Find a build";
     }
   });
 </script>
